@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Movimientos{% endblock %}
+{% block page_title %}Historial General de Entradas y Salidas{% endblock %}
+{% block page_subtitle %}Bitácora completa y auditoría de accesos vehiculares con filtros{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('movimientos_index') }}" class="btn btn-primary btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"></path><path d="M4 20L21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path></svg>
+  <span>Ver Estancias Activas</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <!-- Filtros de búsqueda -->
+  <form method="GET" action="{{ url_for('movimientos_historial') }}" class="filter-bar" style="background-color: var(--bg-card); padding: 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+    <div style="flex: 1; min-width: 160px;">
+      <label for="filtro_placa" style="display: block; margin-bottom: 0.35rem; font-size: 0.78rem;">Placa:</label>
+      <input type="text" id="filtro_placa" name="placa" value="{{ placa }}" placeholder="Ej: KGT482" style="text-transform: uppercase;">
+    </div>
+
+    <div style="flex: 1; min-width: 160px;">
+      <label for="fecha_desde" style="display: block; margin-bottom: 0.35rem; font-size: 0.78rem;">Fecha Desde:</label>
+      <input type="date" id="fecha_desde" name="fecha_desde" value="{{ fecha_desde }}">
+    </div>
+
+    <div style="flex: 1; min-width: 160px;">
+      <label for="fecha_hasta" style="display: block; margin-bottom: 0.35rem; font-size: 0.78rem;">Fecha Hasta:</label>
+      <input type="date" id="fecha_hasta" name="fecha_hasta" value="{{ fecha_hasta }}">
+    </div>
+
+    <div style="min-width: 160px;">
+      <label for="filtro_estado" style="display: block; margin-bottom: 0.35rem; font-size: 0.78rem;">Estado:</label>
+      <select id="filtro_estado" name="estado">
+        <option value="TODOS" {% if estado == 'TODOS' or not estado %}selected{% endif %}>Todos los estados</option>
+        <option value="ACTIVO" {% if estado == 'ACTIVO' %}selected{% endif %}>Estancia Activa (Dentro)</option>
+        <option value="FINALIZADO" {% if estado == 'FINALIZADO' %}selected{% endif %}>Finalizado (Salida)</option>
+      </select>
+    </div>
+
+    <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+      <button type="submit" class="btn btn-secondary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <span>Filtrar</span>
+      </button>
+      {% if placa or fecha_desde or fecha_hasta or (estado and estado != 'TODOS') %}
+        <a href="{{ url_for('movimientos_historial') }}" class="btn btn-outline" title="Quitar filtros">Limpiar</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <!-- Tabla del historial -->
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Estado</th>
+          <th>Placa</th>
+          <th>Celda</th>
+          <th>Vehículo</th>
+          <th>Cliente Propietario</th>
+          <th>Fecha y Hora Entrada</th>
+          <th>Fecha y Hora Salida</th>
+          <th>Operador</th>
+          <th>Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movimientos %}
+          <tr>
+            <td>#{{ m.id }}</td>
+            <td>
+              {% if m.estado == 'ACTIVO' %}
+                <span class="badge badge-success">Dentro</span>
+              {% else %}
+                <span class="badge badge-secondary">Finalizado</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="plate-pill">{{ m.placa }}</span>
+            </td>
+            <td>
+              <strong style="color: var(--brand-accent);">{{ m.codigo_celda }}</strong>
+            </td>
+            <td>
+              <div style="font-weight: 600;">{{ m.marca }} {{ m.modelo }}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">{{ m.tipo_vehiculo }} - {{ m.color }}</div>
+            </td>
+            <td>
+              <div>{{ m.cliente_nombre }}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">Doc: {{ m.cliente_documento }}</div>
+            </td>
+            <td>{{ m.fecha_entrada | format_datetime }}</td>
+            <td>{{ m.fecha_salida | format_datetime }}</td>
+            <td>
+              <span style="font-size: 0.8rem; color: var(--text-secondary);">{{ m.usuario_nombre or 'Sistema' }}</span>
+            </td>
+            <td>
+              {% if m.observaciones_entrada %}
+                <div style="font-size: 0.75rem;"><strong style="color: var(--text-secondary);">Entrada:</strong> {{ m.observaciones_entrada }}</div>
+              {% endif %}
+              {% if m.observaciones_salida %}
+                <div style="font-size: 0.75rem;"><strong style="color: var(--text-secondary);">Salida:</strong> {{ m.observaciones_salida }}</div>
+              {% endif %}
+              {% if not m.observaciones_entrada and not m.observaciones_salida %}
+                <span style="color: var(--text-muted); font-size: 0.78rem;">Sin notas</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="10" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              No se encontraron registros de movimientos con los filtros aplicados.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar Pago de Mensualidad{% endblock %}
+{% block page_title %}Registrar Pago de Mensualidad{% endblock %}
+{% block page_subtitle %}Ingreso de comprobante y asignación de periodo cubierto{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('mensualidades_index') }}" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+  <span>Volver a mensualidades</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 820px; margin: 0 auto;">
+  <form method="POST">
+    <!-- Selección de vehículo -->
+    <div class="form-grid">
+      <div class="form-group full-width">
+        <label for="mensualidad-vehiculo-select">Vehículo Afiliado: <span class="req">*</span></label>
+        <select id="mensualidad-vehiculo-select" name="vehiculo_id" required>
+          <option value="">-- Seleccione el vehículo que realiza el pago --</option>
+          {% for v in vehiculos %}
+            <option value="{{ v.id }}" {% if datos.vehiculo_id|string == v.id|string %}selected{% endif %}>
+              {{ v.placa }} - {{ v.marca }} {{ v.modelo }} | Propietario: {{ v.cliente_nombre }}
+            </option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">El sistema detectará automáticamente los datos del cliente propietario y evitará pagos duplicados para el mismo periodo.</span>
+      </div>
+    </div>
+
+    <!-- Caja de previsualización dinámica del cliente y vehículo -->
+    <div id="cliente-info-preview" style="background-color: var(--bg-card); border-left: 4px solid var(--brand-accent); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1.5rem; display: none;">
+      <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--brand-accent); font-weight: 700;">Datos del Afiliado:</div>
+      <div style="display: flex; gap: 2rem; flex-wrap: wrap; margin-top: 0.35rem; font-size: 0.88rem;">
+        <div><strong>Cliente:</strong> <span id="info-cliente-nombre">-</span></div>
+        <div><strong>Documento:</strong> <span id="info-cliente-doc">-</span></div>
+        <div><strong>Vehículo:</strong> <span id="info-vehiculo-detalles">-</span></div>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="periodo">Periodo Cubierto (Año-Mes): <span class="req">*</span></label>
+        <input type="text" id="periodo" name="periodo" value="{{ datos.periodo or '' }}" placeholder="YYYY-MM (ej: 2026-10)" pattern="^[0-9]{4}-[0-9]{2}$" title="Formato YYYY-MM, ejemplo: 2026-10" required>
+        <span class="form-hint">Formato estándar: AAAA-MM</span>
+      </div>
+
+      <div class="form-group">
+        <label for="mensualidad-valor-input">Valor del Pago ($ COP): <span class="req">*</span></label>
+        <input type="number" id="mensualidad-valor-input" name="valor" value="{{ datos.valor or '180000' }}" min="1000" step="500" required>
+      </div>
+
+      <div class="form-group">
+        <label for="fecha_inicio">Fecha Inicio del Periodo: <span class="req">*</span></label>
+        <input type="date" id="fecha_inicio" name="fecha_inicio" value="{{ datos.fecha_inicio or '' }}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="fecha_fin">Fecha Fin del Periodo: <span class="req">*</span></label>
+        <input type="date" id="fecha_fin" name="fecha_fin" value="{{ datos.fecha_fin or '' }}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="fecha_pago">Fecha en que se Realizó el Pago: <span class="req">*</span></label>
+        <input type="date" id="fecha_pago" name="fecha_pago" value="{{ datos.fecha_pago or today_str }}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="metodo_pago">Método de Pago: <span class="req">*</span></label>
+        <select id="metodo_pago" name="metodo_pago" required>
+          <option value="Efectivo" {% if datos.metodo_pago == 'Efectivo' %}selected{% endif %}>Efectivo en caja</option>
+          <option value="Transferencia Bancolombia" {% if datos.metodo_pago == 'Transferencia Bancolombia' %}selected{% endif %}>Transferencia Bancolombia</option>
+          <option value="Nequi / Daviplata" {% if datos.metodo_pago == 'Nequi / Daviplata' %}selected{% endif %}>Nequi / Daviplata</option>
+          <option value="Tarjeta Débito/Crédito" {% if datos.metodo_pago == 'Tarjeta Débito/Crédito' %}selected{% endif %}>Tarjeta Débito/Crédito (Datáfono)</option>
+          <option value="PSE / Botón Bancario" {% if datos.metodo_pago == 'PSE / Botón Bancario' %}selected{% endif %}>PSE / Botón Bancario</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="referencia_pago">Referencia / Comprobante:</label>
+        <input type="text" id="referencia_pago" name="referencia_pago" value="{{ datos.referencia_pago or '' }}" placeholder="Ej: TRF-102938, REC-0045">
+      </div>
+
+      <div class="form-group">
+        <label for="estado">Estado del Pago: <span class="req">*</span></label>
+        <select id="estado" name="estado" required>
+          <option value="PAGADO" {% if datos.estado == 'PAGADO' %}selected{% endif %}>PAGADO (Comprobante verificado)</option>
+          <option value="PENDIENTE" {% if datos.estado == 'PENDIENTE' %}selected{% endif %}>PENDIENTE (Por verificar/consignar)</option>
+        </select>
+      </div>
+
+      <div class="form-group full-width">
+        <label for="observaciones">Observaciones o Notas Adicionales:</label>
+        <textarea id="observaciones" name="observaciones" placeholder="Ej: Pago adelantado, descuento autorizado, etc.">{{ datos.observaciones or '' }}</textarea>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+      <a href="{{ url_for('mensualidades_index') }}" class="btn btn-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary">Registrar Pago de Mensualidad</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

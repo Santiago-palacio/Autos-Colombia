@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}{% if es_nuevo %}Nuevo Vehículo{% else %}Editar Vehículo{% endif %}{% endblock %}
+{% block page_title %}{% if es_nuevo %}Registrar Nuevo Vehículo{% else %}Editar Vehículo: {{ vehiculo.placa }}{% endif %}{% endblock %}
+{% block page_subtitle %}Datos del automotor y asociación al propietario{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('vehiculos_index') }}" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+  <span>Volver a vehículos</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 780px; margin: 0 auto;">
+  <form method="POST">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="placa">Placa Única: <span class="req">*</span></label>
+        <input type="text" id="placa" name="placa" value="{{ vehiculo.placa or '' }}" placeholder="Ej: ABC123 o DXB34F" style="text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;" required>
+        <span class="form-hint">Formato estándar colombiano sin espacios ni guiones.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="tipo">Tipo de Vehículo: <span class="req">*</span></label>
+        <select id="tipo" name="tipo" required>
+          <option value="Automóvil" {% if vehiculo.tipo == 'Automóvil' %}selected{% endif %}>Automóvil / Sedán / Hatchback</option>
+          <option value="Camioneta / SUV" {% if vehiculo.tipo == 'Camioneta / SUV' %}selected{% endif %}>Camioneta / SUV / Campero</option>
+          <option value="Motocicleta" {% if vehiculo.tipo == 'Motocicleta' %}selected{% endif %}>Motocicleta</option>
+          <option value="Furgón / Utilitario" {% if vehiculo.tipo == 'Furgón / Utilitario' %}selected{% endif %}>Furgón / Utilitario</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="marca">Marca: <span class="req">*</span></label>
+        <input type="text" id="marca" name="marca" value="{{ vehiculo.marca or '' }}" placeholder="Ej: Mazda, Chevrolet, Renault, Yamaha" required>
+      </div>
+
+      <div class="form-group">
+        <label for="modelo">Línea y Modelo (Año): <span class="req">*</span></label>
+        <input type="text" id="modelo" name="modelo" value="{{ vehiculo.modelo or '' }}" placeholder="Ej: Mazda 3 Grand Touring 2022" required>
+      </div>
+
+      <div class="form-group">
+        <label for="color">Color: <span class="req">*</span></label>
+        <input type="text" id="color" name="color" value="{{ vehiculo.color or '' }}" placeholder="Ej: Rojo Diamante, Blanco, Negro" required>
+      </div>
+
+      <div class="form-group">
+        <label for="cliente_id">Cliente Propietario: <span class="req">*</span></label>
+        <select id="cliente_id" name="cliente_id" required>
+          <option value="">-- Seleccione el cliente responsable --</option>
+          {% for c in clientes %}
+            <option value="{{ c.id }}" {% if vehiculo.cliente_id == c.id %}selected{% endif %}>
+              {{ c.nombre }} (Doc: {{ c.documento }})
+            </option>
+          {% endfor %}
+        </select>
+        <span class="form-hint">¿No existe el cliente? <a href="{{ url_for('clientes_nuevo') }}" style="color: var(--brand-accent);">Crear nuevo cliente aquí</a></span>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+      <a href="{{ url_for('vehiculos_index') }}" class="btn btn-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary">
+        {% if es_nuevo %}Guardar Vehículo{% else %}Guardar Cambios{% endif %}
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

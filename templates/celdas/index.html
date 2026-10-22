@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Celdas{% endblock %}
+{% block page_title %}Gestión de Celdas de Parqueadero{% endblock %}
+{% block page_subtitle %}Distribución de bahías de estacionamiento y control de disponibilidad{% endblock %}
+
+{% block topbar_actions %}
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="modal-nueva-celda">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  <span>Nueva Celda</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div class="section-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect></svg>
+      <span>Listado de Celdas del Parqueadero</span>
+    </div>
+    <div style="min-width: 250px;">
+      <input type="text" data-live-filter="tabla-celdas" placeholder="Filtrar por código o estado en tiempo real..." autocomplete="off">
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table id="tabla-celdas">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Tipo Permitido</th>
+          <th>Ubicación / Bahía</th>
+          <th>Estado Actual</th>
+          <th>Vehículo Ocupante</th>
+          <th>Fecha Ingreso</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in celdas %}
+          <tr>
+            <td>
+              <strong style="font-size: 1.05rem; color: #fff;">{{ c.codigo }}</strong>
+            </td>
+            <td>
+              <span class="badge badge-info">{{ c.tipo_permitido }}</span>
+            </td>
+            <td>{{ c.ubicacion or 'Sin ubicación descrita' }}</td>
+            <td>
+              {% if c.estado == 'DISPONIBLE' %}
+                <span class="badge badge-success">Disponible</span>
+              {% elif c.estado == 'OCUPADA' %}
+                <span class="badge badge-danger">Ocupada</span>
+              {% else %}
+                <span class="badge badge-warning">En Mantenimiento</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if c.estado == 'OCUPADA' and c.placa %}
+                <span class="plate-pill">{{ c.placa }}</span>
+                <span style="font-size: 0.75rem; color: var(--text-secondary); margin-left: 0.35rem;">({{ c.cliente_nombre }})</span>
+              {% else %}
+                <span style="color: var(--text-muted); font-size: 0.8rem;">- Ninguno -</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if c.estado == 'OCUPADA' and c.fecha_entrada %}
+                {{ c.fecha_entrada | format_datetime }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>
+              {% if c.estado == 'DISPONIBLE' %}
+                <form method="POST" action="{{ url_for('celdas_cambiar_estado', celda_id=c.id) }}" style="display: inline;">
+                  <input type="hidden" name="nuevo_estado" value="MANTENIMIENTO">
+                  <button type="submit" class="btn btn-outline btn-sm" title="Marcar en Mantenimiento" data-confirm="¿Desea poner la celda {{ c.codigo }} en mantenimiento?">
+                    <span style="color: var(--warning);">Mantenimiento</span>
+                  </button>
+                </form>
+              {% elif c.estado == 'MANTENIMIENTO' %}
+                <form method="POST" action="{{ url_for('celdas_cambiar_estado', celda_id=c.id) }}" style="display: inline;">
+                  <input type="hidden" name="nuevo_estado" value="DISPONIBLE">
+                  <button type="submit" class="btn btn-outline btn-sm" title="Habilitar Celda">
+                    <span style="color: var(--success);">Habilitar</span>
+                  </button>
+                </form>
+              {% elif c.estado == 'OCUPADA' and c.movimiento_id %}
+                <button type="button" 
+                        class="btn btn-danger btn-sm btn-registrar-salida"
+                        data-movimiento-id="{{ c.movimiento_id }}"
+                        data-placa="{{ c.placa }}"
+                        data-celda="{{ c.codigo }}"
+                        data-origen="celdas">
+                  <span>Dar Salida</span>
+                </button>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Crear Nueva Celda -->
+<div id="modal-nueva-celda" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Agregar Nueva Celda</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('celdas_nueva') }}">
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="codigo_celda">Código Identificador: <span class="req">*</span></label>
+          <input type="text" id="codigo_celda" name="codigo" placeholder="Ej: A-09, C-05, M-07" style="text-transform: uppercase; font-weight: 700;" required>
+          <span class="form-hint">Debe ser único en el parqueadero (ej: letra de zona y número).</span>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="tipo_permitido">Tipo de Vehículo Permitido: <span class="req">*</span></label>
+          <select id="tipo_permitido" name="tipo_permitido" required>
+            <option value="Automóvil">Automóvil</option>
+            <option value="Camioneta / SUV">Camioneta / SUV</option>
+            <option value="Motocicleta">Motocicleta</option>
+            <option value="Cualquiera">Cualquiera / Mixta</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="ubicacion_celda">Ubicación / Sector / Bahía:</label>
+          <input type="text" id="ubicacion_celda" name="ubicacion" placeholder="Ej: Piso 1 - Sector Norte, Bahía Especial">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Crear Celda</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

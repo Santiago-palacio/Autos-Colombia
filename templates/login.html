@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciar Sesión - Autos Colombia</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="login-page">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="brand-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 10.9 2 11.2 2 11.5V16c0 .6.4 1 1 1h2"></path>
+          <circle cx="7" cy="17" r="2"></circle><circle cx="17" cy="17" r="2"></circle>
+        </svg>
+      </div>
+      <h1>Autos Colombia</h1>
+      <p>Gestión de Parqueadero por Mensualidades</p>
+    </div>
+
+    <!-- Alertas Flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="alert-container">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">
+              <span>{{ message }}</span>
+              <button type="button" class="alert-close" onclick="this.parentElement.remove();">&times;</button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label for="username">Usuario del Sistema:</label>
+        <input type="text" id="username" name="username" placeholder="admin u operador" required autofocus autocomplete="username">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.5rem;">
+        <label for="password">Contraseña:</label>
+        <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem; font-size: 1rem;">
+        Ingresar al Sistema
+      </button>
+    </form>
+
+    <!-- Credenciales de Demostración -->
+    <div class="demo-credentials-box">
+      <div style="font-weight: 700; color: #fff; margin-bottom: 0.35rem;">Credenciales de Demostración:</div>
+      <div>• <strong>Administrador:</strong> Usuario: <code>admin</code> | Clave: <code>admin123</code></div>
+      <div style="margin-top: 0.2rem;">• <strong>Operador:</strong> Usuario: <code>operador</code> | Clave: <code>operador123</code></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio{% endblock %}
+{% block page_title %}Panel Principal{% endblock %}
+{% block page_subtitle %}Resumen operativo en tiempo real - Periodo {{ stats.periodo_actual }}{% endblock %}
+
+{% block content %}
+<!-- Tarjetas de Indicadores Principales (KPIs) -->
+<div class="stats-grid">
+  <!-- 1. Vehículos dentro -->
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Vehículos Estacionados</span>
+      <div class="stat-icon blue">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 10.9 2 11.2 2 11.5V16c0 .6.4 1 1 1h2"></path>
+          <circle cx="7" cy="17" r="2"></circle><circle cx="17" cy="17" r="2"></circle>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value">{{ stats.vehiculos_dentro }}</div>
+    <div class="stat-desc">
+      <span>Estancias activas en este instante</span>
+    </div>
+  </div>
+
+  <!-- 2. Celdas disponibles -->
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Celdas Disponibles</span>
+      <div class="stat-icon green">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="2" width="20" height="8" rx="2"></rect>
+          <rect x="2" y="14" width="20" height="8" rx="2"></rect>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value">{{ stats.celdas_disponibles }} <span style="font-size: 1rem; color: var(--text-muted); font-weight: normal;">/ {{ stats.total_celdas }}</span></div>
+    <div class="stat-desc">
+      <span>{{ stats.porcentaje_ocupacion }}% ocupación total</span>
+    </div>
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" style="width: {{ stats.porcentaje_ocupacion }}%; background-color: {% if stats.porcentaje_ocupacion > 80 %}var(--danger){% elif stats.porcentaje_ocupacion > 50 %}var(--warning){% else %}var(--success){% endif %};"></div>
+    </div>
+  </div>
+
+  <!-- 3. Mensualidades pendientes -->
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Mensualidades del Mes</span>
+      <div class="stat-icon amber">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+          <line x1="1" y1="10" x2="23" y2="10"></line>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value">{{ stats.mensualidades_pendientes }} <span style="font-size: 0.95rem; color: var(--warning); font-weight: normal;">pendientes</span></div>
+    <div class="stat-desc">
+      <span><strong style="color: #34d399;">{{ stats.mensualidades_al_dia }}</strong> al día en {{ stats.periodo_actual }}</span>
+    </div>
+  </div>
+
+  <!-- 4. Novedades activas -->
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Novedades Abiertas</span>
+      <div class="stat-icon purple">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value">{{ stats.novedades_activas }}</div>
+    <div class="stat-desc">
+      <span>Incidentes o notas en revisión</span>
+    </div>
+  </div>
+</div>
+
+<!-- Barra de Accesos Rápidos -->
+<div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 2rem;">
+  <button type="button" class="btn btn-primary" data-modal-target="modal-nueva-entrada">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    <span>Registrar Entrada</span>
+  </button>
+  <a href="{{ url_for('mensualidades_nuevo') }}" class="btn btn-secondary">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
+    <span>Nuevo Pago Mensualidad</span>
+  </a>
+  <a href="{{ url_for('novedades_index') }}" class="btn btn-outline">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+    <span>Reportar Novedad</span>
+  </a>
+  <a href="{{ url_for('movimientos_historial') }}" class="btn btn-outline">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+    <span>Ver Historial Completo</span>
+  </a>
+</div>
+
+<!-- Mapa Visual de Ocupación de Celdas -->
+<div class="card">
+  <div class="section-header">
+    <div class="section-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
+      <span>Distribución Visual de Celdas</span>
+    </div>
+    <div class="legend-bar">
+      <div class="legend-item"><span class="legend-dot green"></span> Disponible (Clic para ingresar)</div>
+      <div class="legend-item"><span class="legend-dot red"></span> Ocupada</div>
+      <div class="legend-item"><span class="legend-dot amber"></span> Mantenimiento</div>
+    </div>
+  </div>
+
+  <div class="parking-grid">
+    {% for celda in stats.celdas_mapa %}
+      <div class="spot-card {{ celda.estado.lower() }}" 
+           data-celda-id="{{ celda.id }}" 
+           data-celda-codigo="{{ celda.codigo }}"
+           title="{% if celda.estado == 'DISPONIBLE' %}Celda libre. Haz clic para asignar un vehículo{% elif celda.estado == 'OCUPADA' %}Ocupada por {{ celda.placa }} - Propietario: {{ celda.cliente_nombre }}{% else %}En mantenimiento{% endif %}">
+        
+        <div class="spot-top">
+          <span class="spot-code">{{ celda.codigo }}</span>
+          <span class="spot-type-tag">{{ celda.tipo_permitido }}</span>
+        </div>
+
+        <div class="spot-body">
+          {% if celda.estado == 'OCUPADA' %}
+            <span class="spot-plate-badge">{{ celda.placa }}</span>
+            <div class="spot-vehicle-desc" title="{{ celda.marca }} {{ celda.modelo }}">{{ celda.marca }} {{ celda.modelo }}</div>
+          {% elif celda.estado == 'DISPONIBLE' %}
+            <div class="spot-empty-prompt">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>Disponible</span>
+            </div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">{{ celda.ubicacion or 'Sin ubicación' }}</div>
+          {% else %}
+            <span class="badge badge-warning">En revisión</span>
+          {% endif %}
+        </div>
+
+        <div class="spot-time">
+          {% if celda.estado == 'OCUPADA' %}
+            <span>Ingreso: {{ celda.fecha_entrada | format_datetime }}</span>
+          {% else %}
+            <span>Listo para asignar</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Tabla de Movimientos Recientes -->
+<div class="card">
+  <div class="card-header">
+    <div class="section-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+      <span>Movimientos Recientes en el Parqueadero</span>
+    </div>
+    <a href="{{ url_for('movimientos_historial') }}" class="btn btn-outline btn-sm">Ver todos</a>
+  </div>
+
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Estado</th>
+          <th>Placa</th>
+          <th>Vehículo</th>
+          <th>Celda</th>
+          <th>Cliente Propietario</th>
+          <th>Fecha y Hora Entrada</th>
+          <th>Fecha y Hora Salida</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mov in stats.movimientos_recientes %}
+          <tr>
+            <td>
+              {% if mov.estado == 'ACTIVO' %}
+                <span class="badge badge-success">Dentro</span>
+              {% else %}
+                <span class="badge badge-secondary">Finalizado</span>
+              {% endif %}
+            </td>
+            <td><span class="plate-pill">{{ mov.placa }}</span></td>
+            <td>
+              <div style="font-weight: 600;">{{ mov.marca }} {{ mov.modelo }}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">{{ mov.tipo_vehiculo }}</div>
+            </td>
+            <td><strong style="color: var(--brand-accent);">{{ mov.codigo_celda }}</strong></td>
+            <td>{{ mov.cliente_nombre }}</td>
+            <td>{{ mov.fecha_entrada | format_datetime }}</td>
+            <td>{{ mov.fecha_salida | format_datetime }}</td>
+            <td>
+              {% if mov.estado == 'ACTIVO' %}
+                <button type="button" 
+                        class="btn btn-danger btn-sm btn-registrar-salida"
+                        data-movimiento-id="{{ mov.id }}"
+                        data-placa="{{ mov.placa }}"
+                        data-celda="{{ mov.codigo_celda }}"
+                        data-origen="dashboard">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                  <span>Dar Salida</span>
+                </button>
+              {% else %}
+                <span style="color: var(--text-muted); font-size: 0.8rem;">Completado</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+              No hay movimientos registrados recientemente.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Nueva Entrada de Vehículo -->
+<div id="modal-nueva-entrada" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Registrar Ingreso de Vehículo</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('movimientos_entrada') }}">
+      <input type="hidden" name="origen" value="dashboard">
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="vehiculo_id">Vehículo a Ingresar: <span class="req">*</span></label>
+          <select id="vehiculo_id" name="vehiculo_id" required>
+            <option value="">-- Seleccione un vehículo registrado --</option>
+            {% for v in vehiculos_disponibles %}
+              <option value="{{ v.id }}">
+                {{ v.placa }} - {{ v.marca }} {{ v.modelo }} ({{ v.cliente_nombre }})
+              </option>
+            {% endfor %}
+          </select>
+          <span class="form-hint">Solo se listan vehículos activos que no están actualmente dentro del parqueadero.</span>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="select-celda-ingreso">Celda Asignada: <span class="req">*</span></label>
+          <select id="select-celda-ingreso" name="celda_id" required>
+            <option value="">-- Seleccione una celda disponible --</option>
+            {% for c in celdas_disponibles %}
+              <option value="{{ c.id }}">
+                Celda {{ c.codigo }} ({{ c.tipo_permitido }}) - {{ c.ubicacion or 'Sin ubicación' }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="observaciones">Observaciones de Ingreso (opcional):</label>
+          <textarea id="observaciones" name="observaciones" placeholder="Ej: Vehículo ingresa con paquete en maletero, rayón leve en parachoques, etc."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar Ingreso</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

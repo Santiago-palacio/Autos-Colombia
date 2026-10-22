@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Mensualidades{% endblock %}
+{% block page_title %}Gestión de Mensualidades y Pagos{% endblock %}
+{% block page_subtitle %}Control de pagos mensuales, periodos de cobertura y comprobantes{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('mensualidades_nuevo') }}" class="btn btn-primary btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  <span>Registrar Pago</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <!-- Filtros de búsqueda -->
+  <div class="card-header">
+    <form method="GET" action="{{ url_for('mensualidades_index') }}" class="filter-bar" style="margin-bottom: 0; width: 100%;">
+      <div style="min-width: 180px;">
+        <select name="periodo" onchange="this.form.submit()">
+          <option value="">Todos los periodos</option>
+          {% for p in periodos_disponibles %}
+            <option value="{{ p }}" {% if periodo_seleccionado == p %}selected{% endif %}>Periodo {{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="min-width: 180px;">
+        <select name="estado" onchange="this.form.submit()">
+          <option value="TODOS" {% if estado_seleccionado == 'TODOS' or not estado_seleccionado %}selected{% endif %}>Todos los estados</option>
+          <option value="PAGADO" {% if estado_seleccionado == 'PAGADO' %}selected{% endif %}>PAGADO</option>
+          <option value="PENDIENTE" {% if estado_seleccionado == 'PENDIENTE' %}selected{% endif %}>PENDIENTE</option>
+          <option value="ANULADO" {% if estado_seleccionado == 'ANULADO' %}selected{% endif %}>ANULADO</option>
+        </select>
+      </div>
+
+      <div class="search-input-wrapper">
+        <input type="text" data-live-filter="tabla-mensualidades" placeholder="Filtrar por placa, cliente o método..." autocomplete="off">
+      </div>
+
+      {% if periodo_seleccionado or (estado_seleccionado and estado_seleccionado != 'TODOS') %}
+        <a href="{{ url_for('mensualidades_index') }}" class="btn btn-outline">Restablecer</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <div class="table-responsive">
+    <table id="tabla-mensualidades">
+      <thead>
+        <tr>
+          <th>Periodo</th>
+          <th>Placa</th>
+          <th>Vehículo</th>
+          <th>Cliente Afiliado</th>
+          <th>Cobertura</th>
+          <th>Valor Pagado</th>
+          <th>Fecha Pago</th>
+          <th>Método y Referencia</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in mensualidades %}
+          <tr>
+            <td>
+              <strong style="color: var(--brand-accent); font-size: 0.95rem;">{{ m.periodo }}</strong>
+            </td>
+            <td>
+              <span class="plate-pill">{{ m.placa }}</span>
+            </td>
+            <td>
+              <div style="font-weight: 600;">{{ m.marca }} {{ m.modelo }}</div>
+              <div style="font-size: 0.74rem; color: var(--text-muted);">{{ m.tipo_vehiculo }}</div>
+            </td>
+            <td>
+              <div>{{ m.cliente_nombre }}</div>
+              <div style="font-size: 0.74rem; color: var(--text-muted);">Tel: {{ m.cliente_telefono }}</div>
+            </td>
+            <td>
+              <span style="font-size: 0.8rem;">{{ m.fecha_inicio | format_date }} al {{ m.fecha_fin | format_date }}</span>
+            </td>
+            <td>
+              <strong style="color: #34d399; font-size: 0.95rem;">{{ m.valor | currency_cop }}</strong>
+            </td>
+            <td>{{ m.fecha_pago | format_date }}</td>
+            <td>
+              <div style="font-weight: 500;">{{ m.metodo_pago }}</div>
+              {% if m.referencia_pago %}
+                <div style="font-size: 0.72rem; color: var(--text-muted);">Ref: {{ m.referencia_pago }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if m.estado == 'PAGADO' %}
+                <span class="badge badge-success">Pagado</span>
+              {% elif m.estado == 'PENDIENTE' %}
+                <span class="badge badge-warning">Pendiente</span>
+              {% else %}
+                <span class="badge badge-danger">Anulado</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if m.estado == 'PAGADO' %}
+                <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=m.id) }}" style="display: inline;">
+                  <input type="hidden" name="nuevo_estado" value="ANULADO">
+                  <button type="submit" class="btn btn-outline btn-sm" 
+                          data-confirm="¿Está seguro de anular este comprobante de pago?">
+                    <span style="color: var(--danger);">Anular</span>
+                  </button>
+                </form>
+              {% elif m.estado == 'PENDIENTE' %}
+                <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=m.id) }}" style="display: inline;">
+                  <input type="hidden" name="nuevo_estado" value="PAGADO">
+                  <button type="submit" class="btn btn-outline btn-sm"
+                          data-confirm="¿Confirmar el pago de esta mensualidad?">
+                    <span style="color: var(--success);">Marcar Pagado</span>
+                  </button>
+                </form>
+              {% else %}
+                <span style="color: var(--text-muted); font-size: 0.75rem;">Sin acción</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="10" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              No se registran mensualidades con los filtros seleccionados.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

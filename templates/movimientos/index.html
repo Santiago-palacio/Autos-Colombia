@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Entradas y Salidas{% endblock %}
+{% block page_title %}Vehículos en Estancia Activa{% endblock %}
+{% block page_subtitle %}Monitoreo de vehículos estacionados actualmente y registro de movimientos{% endblock %}
+
+{% block topbar_actions %}
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="modal-nueva-entrada">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  <span>Registrar Entrada</span>
+</button>
+<a href="{{ url_for('movimientos_historial') }}" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+  <span>Ver Historial Completo</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div class="section-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      <span>Vehículos Estacionados Actualmente ({{ movimientos | length }})</span>
+    </div>
+    <div style="min-width: 250px;">
+      <input type="text" data-live-filter="tabla-estancias-activas" placeholder="Buscar por placa, celda o propietario..." autocomplete="off">
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table id="tabla-estancias-activas">
+      <thead>
+        <tr>
+          <th>Placa</th>
+          <th>Celda Asignada</th>
+          <th>Tipo y Vehículo</th>
+          <th>Cliente Propietario</th>
+          <th>Teléfono</th>
+          <th>Fecha y Hora Ingreso</th>
+          <th>Operador</th>
+          <th>Observaciones de Entrada</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movimientos %}
+          <tr>
+            <td>
+              <span class="plate-pill">{{ m.placa }}</span>
+            </td>
+            <td>
+              <strong style="color: var(--brand-accent); font-size: 1rem;">{{ m.codigo_celda }}</strong>
+              <div style="font-size: 0.7rem; color: var(--text-muted);">{{ m.celda_ubicacion or '' }}</div>
+            </td>
+            <td>
+              <div style="font-weight: 600;">{{ m.marca }} {{ m.modelo }}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">{{ m.color }} - {{ m.tipo_vehiculo }}</div>
+            </td>
+            <td>
+              <strong>{{ m.cliente_nombre }}</strong>
+            </td>
+            <td>{{ m.cliente_telefono }}</td>
+            <td>{{ m.fecha_entrada | format_datetime }}</td>
+            <td>
+              <span style="font-size: 0.8rem; color: var(--text-secondary);">{{ m.usuario_nombre or 'Sistema' }}</span>
+            </td>
+            <td>
+              <span style="font-size: 0.8rem; color: var(--text-secondary);">{{ m.observaciones_entrada or '-' }}</span>
+            </td>
+            <td>
+              <button type="button" 
+                      class="btn btn-danger btn-sm btn-registrar-salida"
+                      data-movimiento-id="{{ m.id }}"
+                      data-placa="{{ m.placa }}"
+                      data-celda="{{ m.codigo_celda }}"
+                      data-origen="movimientos">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <span>Registrar Salida</span>
+              </button>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              Actualmente no hay ningún vehículo estacionado en el parqueadero.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Nueva Entrada de Vehículo -->
+<div id="modal-nueva-entrada" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Registrar Entrada de Vehículo</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('movimientos_entrada') }}">
+      <input type="hidden" name="origen" value="movimientos">
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="vehiculo_id">Vehículo a Ingresar: <span class="req">*</span></label>
+          <select id="vehiculo_id" name="vehiculo_id" required>
+            <option value="">-- Seleccione un vehículo registrado --</option>
+            {% for v in vehiculos_disponibles %}
+              <option value="{{ v.id }}">
+                {{ v.placa }} - {{ v.marca }} {{ v.modelo }} ({{ v.cliente_nombre }})
+              </option>
+            {% endfor %}
+          </select>
+          <span class="form-hint">Solo se muestran vehículos que no se encuentran actualmente dentro.</span>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="select-celda-ingreso">Celda de Estacionamiento: <span class="req">*</span></label>
+          <select id="select-celda-ingreso" name="celda_id" required>
+            <option value="">-- Seleccione celda libre --</option>
+            {% for c in celdas_disponibles %}
+              <option value="{{ c.id }}">
+                Celda {{ c.codigo }} ({{ c.tipo_permitido }}) - {{ c.ubicacion or 'Sin ubicación' }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="observaciones">Observaciones de Ingreso (opcional):</label>
+          <textarea id="observaciones" name="observaciones" placeholder="Ej: Se deja juego de llaves en recepción, sin novedades aparentes."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar Ingreso</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Página No Encontrada{% endblock %}
+{% block page_title %}Error 404{% endblock %}
+{% block page_subtitle %}El recurso solicitado no fue encontrado{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align: center; padding: 4rem 2rem; max-width: 600px; margin: 2rem auto;">
+  <div style="font-size: 4rem; font-weight: 800; color: var(--brand-accent); line-height: 1;">404</div>
+  <h3 style="margin-top: 1rem; color: #fff;">Página o Registro No Encontrado</h3>
+  <p style="color: var(--text-secondary); margin: 1rem 0 2rem 0;">
+    La ruta a la que intentas acceder no existe en el sistema o fue reubicada.
+  </p>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Volver al Panel Principal</a>
+</div>
+{% endblock %}

@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Novedades e Incidentes{% endblock %}
+{% block page_title %}Bitácora de Novedades e Incidentes{% endblock %}
+{% block page_subtitle %}Registro de golpes previos, reclamos, pérdidas o anomalías operativas{% endblock %}
+
+{% block topbar_actions %}
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="modal-nueva-novedad">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  <span>Registrar Novedad</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <!-- Filtros -->
+  <div class="card-header">
+    <form method="GET" action="{{ url_for('novedades_index') }}" class="filter-bar" style="margin-bottom: 0; width: 100%;">
+      <div style="min-width: 200px;">
+        <select name="estado" onchange="this.form.submit()">
+          <option value="TODOS" {% if estado_seleccionado == 'TODOS' or not estado_seleccionado %}selected{% endif %}>Todos los estados</option>
+          <option value="ABIERTO" {% if estado_seleccionado == 'ABIERTO' %}selected{% endif %}>ABIERTO</option>
+          <option value="EN_REVISION" {% if estado_seleccionado == 'EN_REVISION' %}selected{% endif %}>EN REVISIÓN</option>
+          <option value="SOLUCIONADO" {% if estado_seleccionado == 'SOLUCIONADO' %}selected{% endif %}>SOLUCIONADO</option>
+        </select>
+      </div>
+
+      <div class="search-input-wrapper">
+        <input type="text" data-live-filter="tabla-novedades" placeholder="Buscar por tipo, descripción o placa..." autocomplete="off">
+      </div>
+
+      {% if estado_seleccionado and estado_seleccionado != 'TODOS' %}
+        <a href="{{ url_for('novedades_index') }}" class="btn btn-outline">Restablecer</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <div class="table-responsive">
+    <table id="tabla-novedades">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Estado</th>
+          <th>Tipo de Novedad</th>
+          <th>Vehículo Asociado</th>
+          <th>Descripción</th>
+          <th>Fecha y Hora</th>
+          <th>Responsable</th>
+          <th>Resolución / Notas</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in novedades %}
+          <tr>
+            <td>#{{ n.id }}</td>
+            <td>
+              {% if n.estado == 'ABIERTO' %}
+                <span class="badge badge-danger">Abierto</span>
+              {% elif n.estado == 'EN_REVISION' %}
+                <span class="badge badge-warning">En Revisión</span>
+              {% else %}
+                <span class="badge badge-success">Solucionado</span>
+              {% endif %}
+            </td>
+            <td>
+              <strong style="color: #fff;">{{ n.tipo }}</strong>
+            </td>
+            <td>
+              {% if n.placa %}
+                <span class="plate-pill">{{ n.placa }}</span>
+                <div style="font-size: 0.72rem; color: var(--text-muted);">{{ n.marca }} {{ n.modelo }}</div>
+              {% else %}
+                <span style="color: var(--text-muted); font-size: 0.8rem;">General / Sin vehículo</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="font-size: 0.85rem; max-width: 320px;">{{ n.descripcion }}</div>
+            </td>
+            <td>{{ n.fecha | format_datetime }}</td>
+            <td>
+              <span style="font-size: 0.8rem; color: var(--text-secondary);">{{ n.usuario_nombre or 'Sistema' }}</span>
+            </td>
+            <td>
+              {% if n.solucion_notas %}
+                <div style="font-size: 0.8rem; color: #34d399;">{{ n.solucion_notas }}</div>
+              {% else %}
+                <span style="color: var(--text-muted); font-size: 0.78rem;">Pendiente</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if n.estado != 'SOLUCIONADO' %}
+                <button type="button" class="btn btn-outline btn-sm btn-gestionar-novedad"
+                        data-novedad-id="{{ n.id }}"
+                        data-novedad-tipo="{{ n.tipo }}"
+                        data-modal-target="modal-resolver-novedad">
+                  Gestionar
+                </button>
+              {% else %}
+                <span style="color: var(--text-muted); font-size: 0.75rem;">Cerrada</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              No se han registrado novedades en este estado.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Registrar Nueva Novedad -->
+<div id="modal-nueva-novedad" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Registrar Novedad o Incidente</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('novedades_nueva') }}">
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="tipo_novedad">Tipo de Incidente: <span class="req">*</span></label>
+          <select id="tipo_novedad" name="tipo" required>
+            <option value="Golpe / Rayón previo">Golpe o Rayón previo (Inspección de entrada)</option>
+            <option value="Fuga de aceite/líquido">Fuga de aceite o líquidos mecánicos</option>
+            <option value="Objeto olvidado">Objeto personal olvidado en celda/recepción</option>
+            <option value="Reclamo cliente">Reclamo o sugerencia de cliente</option>
+            <option value="Infracción interna">Infracción interna o mal parqueado</option>
+            <option value="Daño locativo">Daño en celda o infraestructura</option>
+            <option value="Otro">Otro incidente operativo</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="novedad_vehiculo_id">Vehículo Involucrado (Opcional):</label>
+          <select id="novedad_vehiculo_id" name="vehiculo_id">
+            <option value="">-- No aplica / Incidente general --</option>
+            {% for v in vehiculos %}
+              <option value="{{ v.id }}">{{ v.placa }} - {{ v.marca }} {{ v.modelo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="descripcion_novedad">Descripción Detallada: <span class="req">*</span></label>
+          <textarea id="descripcion_novedad" name="descripcion" placeholder="Describa con precisión qué ocurrió, lugar, hora y detalles relevantes..." required style="min-height: 100px;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar Novedad</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Resolver Novedad -->
+<div id="modal-resolver-novedad" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Actualizar Estado de la Novedad</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form id="form-resolver-novedad" method="POST" action="">
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="nuevo_estado_novedad">Nuevo Estado: <span class="req">*</span></label>
+          <select id="nuevo_estado_novedad" name="estado" required>
+            <option value="SOLUCIONADO">SOLUCIONADO (Cerrar caso)</option>
+            <option value="EN_REVISION">EN REVISIÓN (En proceso de trámite)</option>
+            <option value="ABIERTO">ABIERTO (Pendiente de atención)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="solucion_notas">Notas de Resolución / Solución adoptada:</label>
+          <textarea id="solucion_notas" name="solucion_notas" placeholder="Ej: Se entregó el objeto a su propietario con firma de recibido, se limpió la mancha de líquido, etc."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal-close>Cancelar</button>
+        <button type="submit" class="btn btn-success">Actualizar Bitácora</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const formResolver = document.getElementById("form-resolver-novedad");
+  document.querySelectorAll(".btn-gestionar-novedad").forEach(btn => {
+    btn.addEventListener("click", function () {
+      const novedadId = this.getAttribute("data-novedad-id");
+      if (formResolver) {
+        formResolver.action = `/novedades/${novedadId}/resolver`;
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

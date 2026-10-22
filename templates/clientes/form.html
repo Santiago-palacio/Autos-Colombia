@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{% if es_nuevo %}Nuevo Cliente{% else %}Editar Cliente{% endif %}{% endblock %}
+{% block page_title %}{% if es_nuevo %}Registrar Nuevo Cliente{% else %}Editar Cliente: {{ cliente.nombre }}{% endif %}{% endblock %}
+{% block page_subtitle %}Información personal y datos de contacto{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('clientes_index') }}" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+  <span>Volver al listado</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 780px; margin: 0 auto;">
+  <form method="POST">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="tipo_documento">Tipo de Documento: <span class="req">*</span></label>
+        <select id="tipo_documento" name="tipo_documento" required>
+          <option value="CC" {% if cliente.tipo_documento == 'CC' %}selected{% endif %}>Cédula de Ciudadanía (CC)</option>
+          <option value="NIT" {% if cliente.tipo_documento == 'NIT' %}selected{% endif %}>NIT / Empresa</option>
+          <option value="CE" {% if cliente.tipo_documento == 'CE' %}selected{% endif %}>Cédula de Extranjería (CE)</option>
+          <option value="Pasaporte" {% if cliente.tipo_documento == 'Pasaporte' %}selected{% endif %}>Pasaporte</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="documento">Número de Documento: <span class="req">*</span></label>
+        <input type="text" id="documento" name="documento" value="{{ cliente.documento or '' }}" placeholder="Ej: 1020304050" required>
+      </div>
+
+      <div class="form-group full-width">
+        <label for="nombre">Nombre Completo o Razón Social: <span class="req">*</span></label>
+        <input type="text" id="nombre" name="nombre" value="{{ cliente.nombre or '' }}" placeholder="Ej: Juan Fernando Restrepo Gómez" required>
+      </div>
+
+      <div class="form-group">
+        <label for="telefono">Teléfono / Celular de Contacto: <span class="req">*</span></label>
+        <input type="text" id="telefono" name="telefono" value="{{ cliente.telefono or '' }}" placeholder="Ej: 3101234567" required>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Correo Electrónico:</label>
+        <input type="email" id="email" name="email" value="{{ cliente.email or '' }}" placeholder="usuario@correo.com">
+      </div>
+
+      <div class="form-group full-width">
+        <label for="direccion">Dirección de Residencia o Trabajo:</label>
+        <input type="text" id="direccion" name="direccion" value="{{ cliente.direccion or '' }}" placeholder="Ej: Calle 100 # 15-20 Apt 301">
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+      <a href="{{ url_for('clientes_index') }}" class="btn btn-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary">
+        {% if es_nuevo %}Guardar Cliente{% else %}Actualizar Cambios{% endif %}
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
