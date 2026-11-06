@@ -37,6 +37,7 @@
     {% endwith %}
 
     <form method="POST" action="{{ url_for('login') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group" style="margin-bottom: 1.25rem;">
         <label for="username">Usuario del Sistema:</label>
         <input type="text" id="username" name="username" placeholder="admin u operador" required autofocus autocomplete="username">

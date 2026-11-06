@@ -102,6 +102,7 @@
             <td>
               {% if m.estado == 'PAGADO' %}
                 <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=m.id) }}" style="display: inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="nuevo_estado" value="ANULADO">
                   <button type="submit" class="btn btn-outline btn-sm" 
                           data-confirm="¿Está seguro de anular este comprobante de pago?">
@@ -110,6 +111,7 @@
                 </form>
               {% elif m.estado == 'PENDIENTE' %}
                 <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=m.id) }}" style="display: inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="nuevo_estado" value="PAGADO">
                   <button type="submit" class="btn btn-outline btn-sm"
                           data-confirm="¿Confirmar el pago de esta mensualidad?">

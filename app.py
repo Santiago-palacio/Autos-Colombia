@@ -3,12 +3,13 @@ app.py - Servidor web principal Flask para el sistema Autos Colombia.
 """
 
 import os
+import secrets
 from functools import wraps
 from datetime import datetime, date
 from flask import (
     Flask, render_template, request, redirect, url_for, flash, session, jsonify, g
 )
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from database import get_db_connection, init_db
 import services
@@ -16,10 +17,45 @@ import services
 app = Flask(__name__)
 app.secret_key = os.environ.get("AUTOSCOLOMBIA_SECRET_KEY", "autos-colombia-secret-key-2026-prod")
 
+# Configuración de seguridad de cookies de sesión
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False  # Permite pruebas locales sobre HTTP
+)
 
 # Inicializar la base de datos al arrancar
 with app.app_context():
     init_db()
+
+
+# ---------------------------------------------------------
+# Protección CSRF (Cross-Site Request Forgery)
+# ---------------------------------------------------------
+def get_csrf_token():
+    """Genera u obtiene el token CSRF vinculado a la sesión actual."""
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(32)
+    return session["csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = get_csrf_token
+
+
+@app.before_request
+def check_csrf():
+    """Valida el token CSRF en peticiones con métodos de modificación (POST, PUT, DELETE, PATCH)."""
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        # Exención automática en entorno de pruebas unitarias/automatizadas
+        if app.config.get("TESTING") or app.config.get("WTF_CSRF_ENABLED") is False:
+            return
+
+        token = request.form.get("csrf_token") or request.headers.get("X-CSRFToken")
+        session_token = session.get("csrf_token")
+
+        if not session_token or not token or not secrets.compare_digest(session_token, token):
+            flash("Solicitud no válida o sesión expirada (token CSRF ausente o incorrecto).", "danger")
+            return render_template("403.html"), 403
 
 
 # ---------------------------------------------------------
@@ -65,7 +101,7 @@ def format_date_filter(d_str):
 
 
 # ---------------------------------------------------------
-# Conexión por petición y decorador de autenticación
+# Conexión por petición y decoradores de autenticación y roles
 # ---------------------------------------------------------
 def get_db():
     if "db" not in g:
@@ -86,6 +122,20 @@ def login_required(f):
         if "user_id" not in session:
             flash("Debe iniciar sesión para acceder a esta sección.", "warning")
             return redirect(url_for("login", next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_required(f):
+    """Decorador de control de acceso por rol: Restringe el acceso exclusivamente a administradores."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user_id" not in session:
+            flash("Debe iniciar sesión para acceder a esta sección.", "warning")
+            return redirect(url_for("login", next=request.url))
+        if session.get("user_role") != "admin":
+            flash("Acceso denegado: Se requieren permisos de administrador para realizar esta acción.", "danger")
+            return render_template("403.html"), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -117,19 +167,27 @@ def login():
 
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM usuarios WHERE username = ? AND activo = 1;", (username,))
+        cursor.execute("SELECT * FROM usuarios WHERE username = ?;", (username,))
         user = cursor.fetchone()
 
-        if user and check_password_hash(user["password_hash"], password):
-            session.clear()
-            session["user_id"] = user["id"]
-            session["user_name"] = user["nombre"]
-            session["user_role"] = user["rol"]
-            flash(f"¡Bienvenido de nuevo, {user['nombre']}!", "success")
-            next_url = request.args.get("next")
-            return redirect(next_url or url_for("dashboard"))
-        else:
-            flash("Credenciales incorrectas o usuario inactivo.", "danger")
+        if user:
+            if not user["activo"]:
+                flash("Su cuenta de usuario se encuentra inactiva. Comuníquese con el administrador.", "danger")
+                return render_template("login.html")
+
+            if check_password_hash(user["password_hash"], password):
+                session.clear()
+                session["user_id"] = user["id"]
+                session["user_name"] = user["nombre"]
+                session["user_role"] = user["rol"]
+                session["csrf_token"] = secrets.token_hex(32)
+                flash(f"¡Bienvenido de nuevo, {user['nombre']}!", "success")
+                next_url = request.args.get("next")
+                if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+                    return redirect(next_url)
+                return redirect(url_for("dashboard"))
+
+        flash("Credenciales incorrectas o usuario inactivo.", "danger")
 
     return render_template("login.html")
 
@@ -165,7 +223,7 @@ def dashboard():
     cursor.execute("""
         SELECT id, codigo, tipo_permitido, ubicacion
         FROM celdas
-        WHERE estado = 'DISPONIBLE'
+        WHERE estado = 'DISPONIBLE' AND activo = 1
         ORDER BY codigo ASC;
     """)
     celdas_disponibles_ingreso = cursor.fetchall()
@@ -469,9 +527,11 @@ def vehiculos_toggle(vehiculo_id):
 @app.route("/celdas")
 @login_required
 def celdas_index():
+    filtro_estado = request.args.get("filtro", "TODOS").strip().upper()
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("""
+
+    sql = """
         SELECT 
             c.*,
             m.id AS movimiento_id,
@@ -482,11 +542,21 @@ def celdas_index():
         LEFT JOIN movimientos m ON m.celda_id = c.id AND m.estado = 'ACTIVO'
         LEFT JOIN vehiculos v ON v.id = m.vehiculo_id
         LEFT JOIN clientes cli ON cli.id = v.cliente_id
-        ORDER BY c.tipo_permitido ASC, c.codigo ASC;
-    """)
+        WHERE 1=1
+    """
+    params = []
+    if filtro_estado == "ACTIVAS":
+        sql += " AND c.activo = 1"
+    elif filtro_estado == "INACTIVAS":
+        sql += " AND c.activo = 0"
+    elif filtro_estado == "DISPONIBLES":
+        sql += " AND c.estado = 'DISPONIBLE' AND c.activo = 1"
+
+    sql += " ORDER BY c.activo DESC, c.tipo_permitido ASC, c.codigo ASC;"
+    cursor.execute(sql, params)
     celdas = cursor.fetchall()
 
-    return render_template("celdas/index.html", celdas=celdas)
+    return render_template("celdas/index.html", celdas=celdas, filtro_seleccionado=filtro_estado)
 
 
 @app.route("/celdas/nueva", methods=["POST"])
@@ -508,13 +578,53 @@ def celdas_nueva():
         return redirect(url_for("celdas_index"))
 
     cursor.execute("""
-        INSERT INTO celdas (codigo, tipo_permitido, estado, ubicacion)
-        VALUES (?, ?, 'DISPONIBLE', ?);
+        INSERT INTO celdas (codigo, tipo_permitido, estado, ubicacion, activo)
+        VALUES (?, ?, 'DISPONIBLE', ?, 1);
     """, (codigo, tipo_permitido, ubicacion or None))
     conn.commit()
 
     flash(f"Celda {codigo} creada con éxito.", "success")
     return redirect(url_for("celdas_index"))
+
+
+@app.route("/celdas/<int:celda_id>/editar", methods=["GET", "POST"])
+@login_required
+def celdas_editar(celda_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM celdas WHERE id = ?;", (celda_id,))
+    celda = cursor.fetchone()
+
+    if not celda:
+        flash("Celda no encontrada.", "danger")
+        return redirect(url_for("celdas_index"))
+
+    if request.method == "POST":
+        codigo = request.form.get("codigo", "").strip().upper()
+        tipo_permitido = request.form.get("tipo_permitido", "").strip()
+        ubicacion = request.form.get("ubicacion", "").strip()
+
+        if not codigo or not tipo_permitido:
+            flash("El código identificador y el tipo de vehículo permitido son obligatorios.", "danger")
+            return render_template("celdas/form.html", celda=request.form, celda_id=celda_id)
+
+        # Validar que no se registre dos veces el mismo código de celda
+        cursor.execute("SELECT id FROM celdas WHERE codigo = ? AND id != ?;", (codigo, celda_id))
+        if cursor.fetchone():
+            flash(f"Ya existe otra celda con el código {codigo}.", "danger")
+            return render_template("celdas/form.html", celda=request.form, celda_id=celda_id)
+
+        cursor.execute("""
+            UPDATE celdas
+            SET codigo = ?, tipo_permitido = ?, ubicacion = ?
+            WHERE id = ?;
+        """, (codigo, tipo_permitido, ubicacion or None, celda_id))
+        conn.commit()
+
+        flash(f"Celda {codigo} actualizada satisfactoriamente.", "success")
+        return redirect(url_for("celdas_index"))
+
+    return render_template("celdas/form.html", celda=celda, celda_id=celda_id)
 
 
 @app.route("/celdas/<int:celda_id>/estado", methods=["POST"])
@@ -527,22 +637,52 @@ def celdas_cambiar_estado(celda_id):
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, codigo, estado FROM celdas WHERE id = ?;", (celda_id,))
+    cursor.execute("SELECT id, codigo, estado, activo FROM celdas WHERE id = ?;", (celda_id,))
     celda = cursor.fetchone()
 
     if not celda:
         flash("Celda no encontrada.", "danger")
         return redirect(url_for("celdas_index"))
 
+    if not celda["activo"]:
+        flash(f"No se puede cambiar el estado de la celda {celda['codigo']} porque está desactivada.", "danger")
+        return redirect(url_for("celdas_index"))
+
     # No se puede pasar a mantenimiento si está ocupada
     if celda["estado"] == "OCUPADA":
-        flash(f"La celda {celda['codigo']} está ocupada. Registre primero la salida del vehículo.", "danger")
+        flash(f"No se puede colocar en mantenimiento la celda {celda['codigo']} porque está ocupada. Registre primero la salida del vehículo.", "danger")
         return redirect(url_for("celdas_index"))
 
     cursor.execute("UPDATE celdas SET estado = ? WHERE id = ?;", (nuevo_estado, celda_id))
     conn.commit()
 
     flash(f"La celda {celda['codigo']} ahora está en estado '{nuevo_estado}'.", "info")
+    return redirect(url_for("celdas_index"))
+
+
+@app.route("/celdas/<int:celda_id>/toggle", methods=["POST"])
+@login_required
+def celdas_toggle(celda_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, codigo, estado, activo FROM celdas WHERE id = ?;", (celda_id,))
+    celda = cursor.fetchone()
+
+    if not celda:
+        flash("Celda no encontrada.", "danger")
+        return redirect(url_for("celdas_index"))
+
+    # Regla: No permitir desactivar una celda que esté ocupada
+    if celda["activo"] == 1 and celda["estado"] == "OCUPADA":
+        flash(f"No se puede desactivar la celda {celda['codigo']} porque está actualmente ocupada. Registre primero la salida del vehículo.", "danger")
+        return redirect(url_for("celdas_index"))
+
+    nuevo_estado = 0 if celda["activo"] == 1 else 1
+    cursor.execute("UPDATE celdas SET activo = ? WHERE id = ?;", (nuevo_estado, celda_id))
+    conn.commit()
+
+    accion = "activada" if nuevo_estado == 1 else "desactivada"
+    flash(f"Celda {celda['codigo']} {accion} correctamente.", "info")
     return redirect(url_for("celdas_index"))
 
 
@@ -588,7 +728,7 @@ def movimientos_index():
     cursor.execute("""
         SELECT id, codigo, tipo_permitido, ubicacion
         FROM celdas
-        WHERE estado = 'DISPONIBLE'
+        WHERE estado = 'DISPONIBLE' AND activo = 1
         ORDER BY codigo ASC;
     """)
     celdas_disponibles = cursor.fetchall()
@@ -967,8 +1107,209 @@ def api_vehiculo(vehiculo_id):
 
 
 # ---------------------------------------------------------
+# 9. Gestión de Usuarios del Sistema (Iteración 2)
+# ---------------------------------------------------------
+@app.route("/usuarios")
+@login_required
+@admin_required
+def usuarios_index():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, nombre, username, email, rol, activo, creado_en
+        FROM usuarios
+        ORDER BY nombre ASC;
+    """)
+    usuarios = cursor.fetchall()
+    return render_template("usuarios/index.html", usuarios=usuarios)
+
+
+@app.route("/usuarios/nuevo", methods=["GET", "POST"])
+@login_required
+@admin_required
+def usuarios_nuevo():
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "").strip()
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+        rol = request.form.get("rol", "").strip().lower()
+        password = request.form.get("password", "").strip()
+        confirm_password = request.form.get("confirm_password", "").strip()
+
+        # Validaciones de campos obligatorios
+        if not nombre or not username or not email or not rol or not password:
+            flash("Todos los campos marcados con asterisco son obligatorios.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=True)
+
+        # Validar que no se asignen roles ajenos al sistema
+        if rol not in ("admin", "operador"):
+            flash("El rol asignado no es válido. Los roles permitidos son Administrador y Operador.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=True)
+
+        # Validar coincidencia de contraseña
+        if password != confirm_password:
+            flash("Las contraseñas ingresadas no coinciden.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=True)
+
+        if len(password) < 6:
+            flash("La contraseña debe tener una longitud mínima de 6 caracteres.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=True)
+
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Validar username no repetido
+        cursor.execute("SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?);", (username,))
+        if cursor.fetchone():
+            flash(f"El nombre de usuario '{username}' ya se encuentra registrado.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=True)
+
+        # Validar email no repetido
+        cursor.execute("SELECT id FROM usuarios WHERE LOWER(email) = LOWER(?);", (email,))
+        if cursor.fetchone():
+            flash(f"El correo electrónico '{email}' ya se encuentra registrado.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=True)
+
+        # Hash seguro de contraseña mediante Werkzeug
+        password_hash = generate_password_hash(password)
+
+        cursor.execute("""
+            INSERT INTO usuarios (nombre, username, email, password_hash, rol, activo)
+            VALUES (?, ?, ?, ?, ?, 1);
+        """, (nombre, username, email, password_hash, rol))
+        conn.commit()
+
+        flash(f"Usuario '{nombre}' registrado exitosamente con rol {rol}.", "success")
+        return redirect(url_for("usuarios_index"))
+
+    return render_template("usuarios/form.html", usuario={}, es_nuevo=True)
+
+
+@app.route("/usuarios/<int:usuario_id>/editar", methods=["GET", "POST"])
+@login_required
+@admin_required
+def usuarios_editar(usuario_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM usuarios WHERE id = ?;", (usuario_id,))
+    usuario = cursor.fetchone()
+
+    if not usuario:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for("usuarios_index"))
+
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "").strip()
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+        rol = request.form.get("rol", "").strip().lower()
+        password = request.form.get("password", "").strip()
+        confirm_password = request.form.get("confirm_password", "").strip()
+
+        if not nombre or not username or not email or not rol:
+            flash("Nombre, nombre de usuario, correo electrónico y rol son obligatorios.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=False, usuario_id=usuario_id)
+
+        if rol not in ("admin", "operador"):
+            flash("Rol inválido. Se permite únicamente 'admin' u 'operador'.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=False, usuario_id=usuario_id)
+
+        # Validar username no repetido excluyendo el usuario actual
+        cursor.execute("SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?) AND id != ?;", (username, usuario_id))
+        if cursor.fetchone():
+            flash(f"El nombre de usuario '{username}' ya está en uso por otro usuario.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=False, usuario_id=usuario_id)
+
+        # Validar email no repetido excluyendo el usuario actual
+        cursor.execute("SELECT id FROM usuarios WHERE LOWER(email) = LOWER(?) AND id != ?;", (email, usuario_id))
+        if cursor.fetchone():
+            flash(f"El correo electrónico '{email}' ya pertenece a otro usuario.", "danger")
+            return render_template("usuarios/form.html", usuario=request.form, es_nuevo=False, usuario_id=usuario_id)
+
+        # Regla: Si se cambia el rol de admin a operador, verificar que no sea el último admin activo
+        if usuario["rol"] == "admin" and rol != "admin" and usuario["activo"] == 1:
+            cursor.execute("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'admin' AND activo = 1;")
+            if cursor.fetchone()["total"] <= 1:
+                flash("No se puede cambiar el rol del único administrador activo del sistema.", "danger")
+                return render_template("usuarios/form.html", usuario=request.form, es_nuevo=False, usuario_id=usuario_id)
+
+        # Si se ingresó nueva contraseña, validar y actualizar
+        if password:
+            if password != confirm_password:
+                flash("Las contraseñas no coinciden.", "danger")
+                return render_template("usuarios/form.html", usuario=request.form, es_nuevo=False, usuario_id=usuario_id)
+            if len(password) < 6:
+                flash("La contraseña debe tener una longitud mínima de 6 caracteres.", "danger")
+                return render_template("usuarios/form.html", usuario=request.form, es_nuevo=False, usuario_id=usuario_id)
+            new_hash = generate_password_hash(password)
+            cursor.execute("""
+                UPDATE usuarios
+                SET nombre = ?, username = ?, email = ?, rol = ?, password_hash = ?
+                WHERE id = ?;
+            """, (nombre, username, email, rol, new_hash, usuario_id))
+        else:
+            cursor.execute("""
+                UPDATE usuarios
+                SET nombre = ?, username = ?, email = ?, rol = ?
+                WHERE id = ?;
+            """, (nombre, username, email, rol, usuario_id))
+
+        conn.commit()
+
+        # Si el usuario editó su propia cuenta, actualizar datos de sesión
+        if session.get("user_id") == usuario_id:
+            session["user_name"] = nombre
+            session["user_role"] = rol
+
+        flash(f"Usuario '{nombre}' actualizado correctamente.", "success")
+        return redirect(url_for("usuarios_index"))
+
+    return render_template("usuarios/form.html", usuario=usuario, es_nuevo=False, usuario_id=usuario_id)
+
+
+@app.route("/usuarios/<int:usuario_id>/toggle", methods=["POST"])
+@login_required
+@admin_required
+def usuarios_toggle(usuario_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, nombre, rol, activo FROM usuarios WHERE id = ?;", (usuario_id,))
+    usuario = cursor.fetchone()
+
+    if not usuario:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for("usuarios_index"))
+
+    # Regla: Ningún administrador puede desactivarse a sí mismo
+    if usuario_id == session.get("user_id"):
+        flash("No puede desactivar su propia cuenta mientras tiene la sesión activa.", "danger")
+        return redirect(url_for("usuarios_index"))
+
+    # Regla: No se debe permitir desactivar al último administrador activo
+    if usuario["rol"] == "admin" and usuario["activo"] == 1:
+        cursor.execute("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'admin' AND activo = 1;")
+        total_admins = cursor.fetchone()["total"]
+        if total_admins <= 1:
+            flash("No se puede desactivar al único administrador activo del sistema.", "danger")
+            return redirect(url_for("usuarios_index"))
+
+    nuevo_estado = 0 if usuario["activo"] == 1 else 1
+    cursor.execute("UPDATE usuarios SET activo = ? WHERE id = ?;", (nuevo_estado, usuario_id))
+    conn.commit()
+
+    accion = "activado" if nuevo_estado == 1 else "desactivado"
+    flash(f"Usuario '{usuario['nombre']}' {accion} exitosamente.", "info")
+    return redirect(url_for("usuarios_index"))
+
+
+# ---------------------------------------------------------
 # Manejadores de Errores
 # ---------------------------------------------------------
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_template("403.html"), 403
+
+
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template("404.html"), 404

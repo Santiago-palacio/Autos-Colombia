@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}{% if es_nuevo %}Nuevo Usuario{% else %}Editar Usuario{% endif %}{% endblock %}
+{% block page_title %}{% if es_nuevo %}Registrar Nuevo Usuario{% else %}Editar Usuario: {{ usuario.nombre }}{% endif %}{% endblock %}
+{% block page_subtitle %}Cuentas de acceso, credenciales y asignación de rol en el sistema{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('usuarios_index') }}" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+  <span>Volver al listado</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 780px; margin: 0 auto;">
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-grid">
+      <div class="form-group full-width">
+        <label for="nombre">Nombre Completo: <span class="req">*</span></label>
+        <input type="text" id="nombre" name="nombre" value="{{ usuario.nombre or '' }}" placeholder="Ej: Diana Marcela Cárdenas" required autofocus>
+      </div>
+
+      <div class="form-group">
+        <label for="username">Nombre de Usuario (Login): <span class="req">*</span></label>
+        <input type="text" id="username" name="username" value="{{ usuario.username or '' }}" placeholder="Ej: dcardenas" required autocomplete="username">
+        <span class="form-hint">Identificador único para inicio de sesión (sin espacios).</span>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Correo Electrónico: <span class="req">*</span></label>
+        <input type="email" id="email" name="email" value="{{ usuario.email or '' }}" placeholder="usuario@autoscolombia.com" required>
+        <span class="form-hint">Debe ser único en el sistema.</span>
+      </div>
+
+      <div class="form-group full-width">
+        <label for="rol">Rol y Nivel de Acceso: <span class="req">*</span></label>
+        <select id="rol" name="rol" required>
+          <option value="operador" {% if usuario.rol == 'operador' %}selected{% endif %}>
+            Operador - Gestión operativa (Entradas, salidas, mensualidades, novedades, clientes, vehículos)
+          </option>
+          <option value="admin" {% if usuario.rol == 'admin' %}selected{% endif %}>
+            Administrador - Control total y gestión de usuarios del sistema
+          </option>
+        </select>
+        <span class="form-hint">El rol define los permisos asignados en el backend del sistema.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="password">
+          Contraseña: {% if es_nuevo %}<span class="req">*</span>{% else %}<span style="font-size: 0.8rem; color: var(--text-muted);">(Opcional si no cambia)</span>{% endif %}
+        </label>
+        <input type="password" id="password" name="password" placeholder="••••••••" {% if es_nuevo %}required{% endif %} autocomplete="new-password">
+        <span class="form-hint">Mínimo 6 caracteres con cifrado seguro.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="confirm_password">
+          Confirmar Contraseña: {% if es_nuevo %}<span class="req">*</span>{% endif %}
+        </label>
+        <input type="password" id="confirm_password" name="confirm_password" placeholder="••••••••" {% if es_nuevo %}required{% endif %} autocomplete="new-password">
+        <span class="form-hint">Vuelva a escribir la contraseña para validación.</span>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem; margin-top: 1rem;">
+      <a href="{{ url_for('usuarios_index') }}" class="btn btn-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary">
+        {% if es_nuevo %}Crear Usuario{% else %}Guardar Cambios{% endif %}
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+

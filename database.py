@@ -72,6 +72,7 @@ def init_db(db_path=None):
         tipo_permitido TEXT NOT NULL,
         estado TEXT NOT NULL DEFAULT 'DISPONIBLE',
         ubicacion TEXT,
+        activo INTEGER NOT NULL DEFAULT 1,
         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -142,11 +143,18 @@ def init_db(db_path=None):
     );
     """)
 
+    # Migración de compatibilidad: Agregar columna 'activo' a celdas si no existe
+    cursor.execute("PRAGMA table_info(celdas);")
+    columns_celdas = [col["name"] for col in cursor.fetchall()]
+    if "activo" not in columns_celdas:
+        cursor.execute("ALTER TABLE celdas ADD COLUMN activo INTEGER NOT NULL DEFAULT 1;")
+
     # Índices para optimizar consultas frecuentes
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientes_documento ON clientes(documento);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_vehiculos_placa ON vehiculos(placa);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_celdas_codigo ON celdas(codigo);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_celdas_estado ON celdas(estado);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_celdas_activo ON celdas(activo);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_movimientos_estado ON movimientos(estado);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_movimientos_vehiculo ON movimientos(vehiculo_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_movimientos_celda ON movimientos(celda_id);")

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Celda{% endblock %}
+{% block page_title %}Editar Celda: {{ celda.codigo }}{% endblock %}
+{% block page_subtitle %}Modificación de código identificador, tipo vehicular y sector de parqueo{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('celdas_index') }}" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+  <span>Volver al listado</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 680px; margin: 0 auto;">
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="codigo">Código Identificador: <span class="req">*</span></label>
+        <input type="text" id="codigo" name="codigo" value="{{ celda.codigo or '' }}" placeholder="Ej: A-01, M-03" style="text-transform: uppercase; font-weight: 700;" required autofocus>
+        <span class="form-hint">Debe ser único en el parqueadero.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="tipo_permitido">Tipo de Vehículo Permitido: <span class="req">*</span></label>
+        <select id="tipo_permitido" name="tipo_permitido" required>
+          <option value="Automóvil" {% if celda.tipo_permitido == 'Automóvil' %}selected{% endif %}>Automóvil</option>
+          <option value="Camioneta / SUV" {% if celda.tipo_permitido == 'Camioneta / SUV' %}selected{% endif %}>Camioneta / SUV</option>
+          <option value="Motocicleta" {% if celda.tipo_permitido == 'Motocicleta' %}selected{% endif %}>Motocicleta</option>
+          <option value="Cualquiera" {% if celda.tipo_permitido in ('Cualquiera', 'Cualquiera / Mixta') %}selected{% endif %}>Cualquiera / Mixta</option>
+        </select>
+      </div>
+
+      <div class="form-group full-width">
+        <label for="ubicacion">Ubicación / Sector / Bahía:</label>
+        <input type="text" id="ubicacion" name="ubicacion" value="{{ celda.ubicacion or '' }}" placeholder="Ej: Piso 1 - Bahía Norte, Sector Lateral">
+        <span class="form-hint">Descripción para facilitar al operador la localización física de la celda.</span>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem; margin-top: 1rem;">
+      <a href="{{ url_for('celdas_index') }}" class="btn btn-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary">Guardar Cambios de Celda</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+

@@ -66,6 +66,14 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
           <span>Historial General</span>
         </a>
+
+        {% if current_user_role == 'admin' %}
+        <div class="nav-section-title">Administración del Sistema</div>
+        <a href="{{ url_for('usuarios_index') }}" class="nav-item {% if request.endpoint and 'usuarios' in request.endpoint %}active{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          <span>Gestión de Usuarios</span>
+        </a>
+        {% endif %}
       </nav>
 
       <div class="sidebar-footer">
@@ -141,6 +149,7 @@
         <button type="button" class="modal-close" data-modal-close>&times;</button>
       </div>
       <form id="form-salida-vehiculo" method="POST" action="">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="origen" value="movimientos">
         <div class="modal-body">
           <p style="margin-bottom: 1rem; font-size: 0.95rem; color: var(--text-secondary);">

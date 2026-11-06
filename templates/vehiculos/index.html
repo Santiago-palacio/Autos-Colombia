@@ -89,6 +89,7 @@
                   <span>Editar</span>
                 </a>
                 <form method="POST" action="{{ url_for('vehiculos_toggle', vehiculo_id=v.id) }}" style="display: inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-outline btn-sm"
                           data-confirm="¿Está seguro de cambiar el estado de este vehículo?">
                     {% if v.activo == 1 %}

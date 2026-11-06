@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Acceso Denegado{% endblock %}
+{% block page_title %}Error 403{% endblock %}
+{% block page_subtitle %}No cuentas con los permisos necesarios{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align: center; padding: 4rem 2rem; max-width: 600px; margin: 2rem auto;">
+  <div style="font-size: 4rem; font-weight: 800; color: var(--danger); line-height: 1;">403</div>
+  <h3 style="margin-top: 1rem; color: #fff;">Acceso Denegado por Rol</h3>
+  <p style="color: var(--text-secondary); margin: 1rem 0 2rem 0;">
+    Tu rol de usuario actual no tiene permisos suficientes para acceder a esta sección o ejecutar esta acción.
+    Esta función está reservada para usuarios con rol de Administrador.
+  </p>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Volver al Panel Principal</a>
+</div>
+{% endblock %}
+

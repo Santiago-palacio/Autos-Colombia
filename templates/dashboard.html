@@ -232,6 +232,7 @@
       <button type="button" class="modal-close" data-modal-close>&times;</button>
     </div>
     <form method="POST" action="{{ url_for('movimientos_entrada') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="origen" value="dashboard">
       <div class="modal-body">
         <div class="form-group" style="margin-bottom: 1.25rem;">

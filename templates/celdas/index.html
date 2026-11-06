@@ -2,7 +2,7 @@
 
 {% block title %}Celdas{% endblock %}
 {% block page_title %}Gestión de Celdas de Parqueadero{% endblock %}
-{% block page_subtitle %}Distribución de bahías de estacionamiento y control de disponibilidad{% endblock %}
+{% block page_subtitle %}Distribución de bahías de estacionamiento, disponibilidad y administración de estados{% endblock %}
 
 {% block topbar_actions %}
 <button type="button" class="btn btn-primary btn-sm" data-modal-target="modal-nueva-celda">
@@ -12,14 +12,30 @@
 {% endblock %}
 
 {% block content %}
+<!-- Filtros por estado de celda -->
+<div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.25rem;">
+  <a href="{{ url_for('celdas_index', filtro='TODOS') }}" class="btn btn-sm {% if not filtro_seleccionado or filtro_seleccionado == 'TODOS' %}btn-primary{% else %}btn-outline{% endif %}">
+    Todas las Celdas
+  </a>
+  <a href="{{ url_for('celdas_index', filtro='ACTIVAS') }}" class="btn btn-sm {% if filtro_seleccionado == 'ACTIVAS' %}btn-primary{% else %}btn-outline{% endif %}">
+    Solo Activas
+  </a>
+  <a href="{{ url_for('celdas_index', filtro='DISPONIBLES') }}" class="btn btn-sm {% if filtro_seleccionado == 'DISPONIBLES' %}btn-primary{% else %}btn-outline{% endif %}">
+    Disponibles para Ingreso
+  </a>
+  <a href="{{ url_for('celdas_index', filtro='INACTIVAS') }}" class="btn btn-sm {% if filtro_seleccionado == 'INACTIVAS' %}btn-primary{% else %}btn-outline{% endif %}">
+    Desactivadas (Baja Lógica)
+  </a>
+</div>
+
 <div class="card">
   <div class="card-header">
     <div class="section-title">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect></svg>
-      <span>Listado de Celdas del Parqueadero</span>
+      <span>Listado de Celdas ({{ celdas | length }})</span>
     </div>
     <div style="min-width: 250px;">
-      <input type="text" data-live-filter="tabla-celdas" placeholder="Filtrar por código o estado en tiempo real..." autocomplete="off">
+      <input type="text" data-live-filter="tabla-celdas" placeholder="Filtrar por código, tipo o estado..." autocomplete="off">
     </div>
   </div>
 
@@ -30,7 +46,8 @@
           <th>Código</th>
           <th>Tipo Permitido</th>
           <th>Ubicación / Bahía</th>
-          <th>Estado Actual</th>
+          <th>Estado Operativo</th>
+          <th>Registro</th>
           <th>Vehículo Ocupante</th>
           <th>Fecha Ingreso</th>
           <th>Acciones</th>
@@ -38,7 +55,7 @@
       </thead>
       <tbody>
         {% for c in celdas %}
-          <tr>
+          <tr {% if c.activo == 0 %}style="opacity: 0.7; background-color: rgba(239, 68, 68, 0.04);"{% endif %}>
             <td>
               <strong style="font-size: 1.05rem; color: #fff;">{{ c.codigo }}</strong>
             </td>
@@ -47,12 +64,21 @@
             </td>
             <td>{{ c.ubicacion or 'Sin ubicación descrita' }}</td>
             <td>
-              {% if c.estado == 'DISPONIBLE' %}
+              {% if c.activo == 0 %}
+                <span class="badge badge-danger">Desactivada</span>
+              {% elif c.estado == 'DISPONIBLE' %}
                 <span class="badge badge-success">Disponible</span>
               {% elif c.estado == 'OCUPADA' %}
                 <span class="badge badge-danger">Ocupada</span>
               {% else %}
                 <span class="badge badge-warning">En Mantenimiento</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if c.activo == 1 %}
+                <span class="badge badge-success" style="font-size: 0.72rem;">Activa</span>
+              {% else %}
+                <span class="badge badge-secondary" style="font-size: 0.72rem;">Inactiva</span>
               {% endif %}
             </td>
             <td>
@@ -71,30 +97,71 @@
               {% endif %}
             </td>
             <td>
-              {% if c.estado == 'DISPONIBLE' %}
-                <form method="POST" action="{{ url_for('celdas_cambiar_estado', celda_id=c.id) }}" style="display: inline;">
-                  <input type="hidden" name="nuevo_estado" value="MANTENIMIENTO">
-                  <button type="submit" class="btn btn-outline btn-sm" title="Marcar en Mantenimiento" data-confirm="¿Desea poner la celda {{ c.codigo }} en mantenimiento?">
-                    <span style="color: var(--warning);">Mantenimiento</span>
-                  </button>
+              <div class="btn-group">
+                <!-- Botón Editar Celda -->
+                <a href="{{ url_for('celdas_editar', celda_id=c.id) }}" class="btn btn-outline btn-sm" title="Editar información de la celda">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                  <span>Editar</span>
+                </a>
+
+                <!-- Acciones operativas de estado (solo para celdas activas) -->
+                {% if c.activo == 1 %}
+                  {% if c.estado == 'DISPONIBLE' %}
+                    <form method="POST" action="{{ url_for('celdas_cambiar_estado', celda_id=c.id) }}" style="display: inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="nuevo_estado" value="MANTENIMIENTO">
+                      <button type="submit" class="btn btn-outline btn-sm" title="Marcar en Mantenimiento" data-confirm="¿Desea poner la celda {{ c.codigo }} en mantenimiento?">
+                        <span style="color: var(--warning);">Mantenimiento</span>
+                      </button>
+                    </form>
+                  {% elif c.estado == 'MANTENIMIENTO' %}
+                    <form method="POST" action="{{ url_for('celdas_cambiar_estado', celda_id=c.id) }}" style="display: inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="nuevo_estado" value="DISPONIBLE">
+                      <button type="submit" class="btn btn-outline btn-sm" title="Habilitar Celda">
+                        <span style="color: var(--success);">Habilitar</span>
+                      </button>
+                    </form>
+                  {% elif c.estado == 'OCUPADA' and c.movimiento_id %}
+                    <button type="button" 
+                            class="btn btn-danger btn-sm btn-registrar-salida"
+                            data-movimiento-id="{{ c.movimiento_id }}"
+                            data-placa="{{ c.placa }}"
+                            data-celda="{{ c.codigo }}"
+                            data-origen="celdas">
+                      <span>Dar Salida</span>
+                    </button>
+                  {% endif %}
+                {% endif %}
+
+                <!-- Conmutador de Baja Lógica / Activar celda -->
+                <form method="POST" action="{{ url_for('celdas_toggle', celda_id=c.id) }}" style="display: inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  {% if c.activo == 1 %}
+                    {% if c.estado == 'OCUPADA' %}
+                      <button type="button" class="btn btn-outline btn-sm" disabled title="No se puede desactivar una celda que está ocupada" style="opacity: 0.4; cursor: not-allowed;">
+                        <span>Desactivar</span>
+                      </button>
+                    {% else %}
+                      <button type="submit" class="btn btn-outline btn-sm" 
+                              data-confirm="¿Está seguro de desactivar la celda {{ c.codigo }}? No estará disponible para nuevos ingresos.">
+                        <span style="color: var(--danger);">Desactivar</span>
+                      </button>
+                    {% endif %}
+                  {% else %}
+                    <button type="submit" class="btn btn-outline btn-sm" 
+                            data-confirm="¿Desea reactivar la celda {{ c.codigo }}?">
+                      <span style="color: var(--success);">Reactivar</span>
+                    </button>
+                  {% endif %}
                 </form>
-              {% elif c.estado == 'MANTENIMIENTO' %}
-                <form method="POST" action="{{ url_for('celdas_cambiar_estado', celda_id=c.id) }}" style="display: inline;">
-                  <input type="hidden" name="nuevo_estado" value="DISPONIBLE">
-                  <button type="submit" class="btn btn-outline btn-sm" title="Habilitar Celda">
-                    <span style="color: var(--success);">Habilitar</span>
-                  </button>
-                </form>
-              {% elif c.estado == 'OCUPADA' and c.movimiento_id %}
-                <button type="button" 
-                        class="btn btn-danger btn-sm btn-registrar-salida"
-                        data-movimiento-id="{{ c.movimiento_id }}"
-                        data-placa="{{ c.placa }}"
-                        data-celda="{{ c.codigo }}"
-                        data-origen="celdas">
-                  <span>Dar Salida</span>
-                </button>
-              {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="8" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              No se encontraron celdas para el filtro seleccionado.
             </td>
           </tr>
         {% endfor %}
@@ -111,6 +178,7 @@
       <button type="button" class="modal-close" data-modal-close>&times;</button>
     </div>
     <form method="POST" action="{{ url_for('celdas_nueva') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-body">
         <div class="form-group" style="margin-bottom: 1.25rem;">
           <label for="codigo_celda">Código Identificador: <span class="req">*</span></label>

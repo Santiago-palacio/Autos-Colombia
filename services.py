@@ -17,10 +17,10 @@ def get_dashboard_stats(conn):
     vehiculos_dentro = cursor.fetchone()["total"]
 
     # 2. Total de celdas y disponibles
-    cursor.execute("SELECT COUNT(*) AS total FROM celdas;")
+    cursor.execute("SELECT COUNT(*) AS total FROM celdas WHERE activo = 1;")
     total_celdas = cursor.fetchone()["total"]
 
-    cursor.execute("SELECT COUNT(*) AS total FROM celdas WHERE estado = 'DISPONIBLE';")
+    cursor.execute("SELECT COUNT(*) AS total FROM celdas WHERE estado = 'DISPONIBLE' AND activo = 1;")
     celdas_disponibles = cursor.fetchone()["total"]
 
     # 3. Novedades activas/abiertas
@@ -49,7 +49,7 @@ def get_dashboard_stats(conn):
     # 5. Lista completa de celdas con estado actual y vehículo ocupante si aplica
     cursor.execute("""
         SELECT 
-            c.id, c.codigo, c.tipo_permitido, c.estado, c.ubicacion,
+            c.id, c.codigo, c.tipo_permitido, c.estado, c.ubicacion, c.activo,
             m.id AS movimiento_id,
             m.fecha_entrada,
             v.placa, v.marca, v.modelo, v.color, v.tipo AS tipo_vehiculo,
@@ -58,6 +58,7 @@ def get_dashboard_stats(conn):
         LEFT JOIN movimientos m ON m.celda_id = c.id AND m.estado = 'ACTIVO'
         LEFT JOIN vehiculos v ON v.id = m.vehiculo_id
         LEFT JOIN clientes cli ON cli.id = v.cliente_id
+        WHERE c.activo = 1
         ORDER BY c.tipo_permitido ASC, c.codigo ASC;
     """)
     celdas_mapa = cursor.fetchall()
@@ -95,12 +96,39 @@ def get_dashboard_stats(conn):
     }
 
 
+def es_tipo_compatible(tipo_vehiculo, tipo_permitido_celda):
+    """
+    Verifica la compatibilidad entre el tipo de vehículo y el tipo permitido por la celda.
+    - Celdas 'Cualquiera' o 'Cualquiera / Mixta': compatibles con todo tipo de vehículo.
+    - Tipos idénticos siempre son compatibles.
+    - Vehículos livianos de 4 ruedas ('Automóvil', 'Camioneta / SUV'): compatibles entre sí.
+    - 'Motocicleta': solo compatible con celdas de 'Motocicleta' o 'Cualquiera'.
+    """
+    if not tipo_permitido_celda:
+        return True
+    t_cel = tipo_permitido_celda.strip().lower()
+    if t_cel in ("cualquiera", "cualquiera / mixta", "mixta"):
+        return True
+    
+    t_veh = (tipo_vehiculo or "").strip().lower()
+    if t_veh == t_cel:
+        return True
+    
+    es_4_ruedas_veh = any(k in t_veh for k in ("automóvil", "automovil", "camioneta", "suv"))
+    es_4_ruedas_cel = any(k in t_cel for k in ("automóvil", "automovil", "camioneta", "suv"))
+    if es_4_ruedas_veh and es_4_ruedas_cel:
+        return True
+
+    return False
+
+
 def registrar_entrada(conn, vehiculo_id, celda_id, usuario_id=None, observaciones=""):
     """
     Registra el ingreso de un vehículo en una celda disponible.
     Aplica reglas de negocio:
     - El vehículo no puede tener ya una estancia activa.
-    - La celda debe estar en estado DISPONIBLE.
+    - La celda debe existir, estar activa y estar en estado DISPONIBLE.
+    - El tipo de vehículo debe ser compatible con el tipo permitido por la celda.
     - Actualiza el estado de la celda a OCUPADA en la misma transacción.
     """
     cursor = conn.cursor()
@@ -126,13 +154,21 @@ def registrar_entrada(conn, vehiculo_id, celda_id, usuario_id=None, observacione
             f"El vehículo {vehiculo['placa']} ya se encuentra dentro del parqueadero en la celda {estancia_activa['codigo']}."
         )
 
-    # Validar que la celda exista y esté DISPONIBLE
-    cursor.execute("SELECT id, codigo, tipo_permitido, estado FROM celdas WHERE id = ?;", (celda_id,))
+    # Validar que la celda exista, esté activa y esté DISPONIBLE
+    cursor.execute("SELECT id, codigo, tipo_permitido, estado, activo FROM celdas WHERE id = ?;", (celda_id,))
     celda = cursor.fetchone()
     if not celda:
         raise ValueError("La celda especificada no existe.")
+    if not celda["activo"]:
+        raise ValueError(f"La celda {celda['codigo']} está desactivada del sistema.")
     if celda["estado"] != "DISPONIBLE":
         raise ValueError(f"La celda {celda['codigo']} no está disponible (Estado actual: {celda['estado']}).")
+
+    # Validar compatibilidad entre el tipo de vehículo y la celda
+    if not es_tipo_compatible(vehiculo["tipo"], celda["tipo_permitido"]):
+        raise ValueError(
+            f"El tipo de vehículo '{vehiculo['tipo']}' no es compatible con la celda {celda['codigo']} (Tipo permitido: '{celda['tipo_permitido']}')."
+        )
 
     # Registrar el movimiento
     cursor.execute("""

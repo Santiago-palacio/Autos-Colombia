@@ -68,6 +68,7 @@
                   <span>Editar</span>
                 </a>
                 <form method="POST" action="{{ url_for('clientes_toggle', cliente_id=c.id) }}" style="display: inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-outline btn-sm" 
                           title="{% if c.activo == 1 %}Desactivar{% else %}Activar{% endif %}"
                           data-confirm="¿Está seguro de cambiar el estado de este cliente?">
