@@ -830,57 +830,80 @@ def movimientos_historial():
 
 
 # ---------------------------------------------------------
-# 7. Gestión de Mensualidades
+# 7. Gestión de Pagos y Mensualidades (Iteración 3)
 # ---------------------------------------------------------
 @app.route("/mensualidades")
+@app.route("/pagos")
 @login_required
 def mensualidades_index():
     periodo = request.args.get("periodo", "").strip()
-    estado = request.args.get("estado", "TODOS").strip()
+    estado = request.args.get("estado", "TODOS").strip().upper()
+    metodo = request.args.get("metodo", "TODOS").strip()
+    query = request.args.get("q", "").strip()
+    cliente_id = request.args.get("cliente_id", "").strip()
+    fecha_desde = request.args.get("fecha_desde", "").strip()
+    fecha_hasta = request.args.get("fecha_hasta", "").strip()
+
     conn = get_db()
     cursor = conn.cursor()
 
-    sql = """
-        SELECT 
-            m.*,
-            v.placa, v.marca, v.modelo, v.tipo AS tipo_vehiculo,
-            cli.nombre AS cliente_nombre, cli.documento AS cliente_documento, cli.telefono AS cliente_telefono,
-            u.nombre AS usuario_nombre
-        FROM mensualidades m
-        JOIN vehiculos v ON v.id = m.vehiculo_id
-        JOIN clientes cli ON cli.id = m.cliente_id
-        LEFT JOIN usuarios u ON u.id = m.usuario_id
-        WHERE 1=1
-    """
-    params = []
+    # Indicadores del Resumen Financiero con los filtros seleccionados
+    resumen = services.get_resumen_financiero(
+        conn=conn,
+        periodo=periodo or None,
+        fecha_desde=fecha_desde or None,
+        fecha_hasta=fecha_hasta or None,
+        cliente_id=int(cliente_id) if cliente_id else None
+    )
 
-    if periodo:
-        sql += " AND m.periodo = ?"
-        params.append(periodo)
+    # Transacciones con filtros combinables
+    mensualidades = services.get_historial_pagos(
+        conn=conn,
+        query=query or None,
+        cliente_id=int(cliente_id) if cliente_id else None,
+        periodo=periodo or None,
+        fecha_desde=fecha_desde or None,
+        fecha_hasta=fecha_hasta or None,
+        estado=estado,
+        metodo_pago=metodo
+    )
 
-    if estado and estado != "TODOS":
-        sql += " AND m.estado = ?"
-        params.append(estado)
-
-    sql += " ORDER BY m.periodo DESC, m.fecha_pago DESC;"
-
-    cursor.execute(sql, params)
-    mensualidades = cursor.fetchall()
-
-    # Obtener lista de periodos existentes para el selector de filtro
+    # Lista de periodos disponibles para el selector
     cursor.execute("SELECT DISTINCT periodo FROM mensualidades ORDER BY periodo DESC;")
     periodos_disponibles = [r["periodo"] for r in cursor.fetchall()]
+
+    # Métodos de pago existentes
+    metodos_disponibles = [
+        "Efectivo",
+        "Transferencia Bancolombia",
+        "Nequi / Daviplata",
+        "Tarjeta Débito/Crédito",
+        "PSE / Botón Bancario"
+    ]
+
+    # Clientes activos para selector opcional
+    cursor.execute("SELECT id, nombre, documento FROM clientes WHERE activo = 1 ORDER BY nombre ASC;")
+    clientes_disponibles = cursor.fetchall()
 
     return render_template(
         "mensualidades/index.html",
         mensualidades=mensualidades,
+        resumen=resumen,
         periodos_disponibles=periodos_disponibles,
+        metodos_disponibles=metodos_disponibles,
+        clientes_disponibles=clientes_disponibles,
         periodo_seleccionado=periodo,
-        estado_seleccionado=estado
+        estado_seleccionado=estado,
+        metodo_seleccionado=metodo,
+        query_busqueda=query,
+        cliente_seleccionado=cliente_id,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta
     )
 
 
 @app.route("/mensualidades/nuevo", methods=["GET", "POST"])
+@app.route("/pagos/nuevo", methods=["GET", "POST"])
 @login_required
 def mensualidades_nuevo():
     conn = get_db()
@@ -895,12 +918,12 @@ def mensualidades_nuevo():
         fecha_pago = request.form.get("fecha_pago", "").strip()
         metodo_pago = request.form.get("metodo_pago", "Efectivo").strip()
         referencia_pago = request.form.get("referencia_pago", "").strip()
-        estado = request.form.get("estado", "PAGADO").strip()
+        estado = request.form.get("estado", "PAGADO").strip().upper()
         observaciones = request.form.get("observaciones", "").strip()
         usuario_id = session.get("user_id")
 
         if not vehiculo_id or not periodo or not fecha_inicio or not fecha_fin or not valor or not fecha_pago:
-            flash("Todos los campos marcados con asterisco son requeridos.", "danger")
+            flash("Todos los campos marcados con asterisco son obligatorios.", "danger")
             cursor.execute("""
                 SELECT v.id, v.placa, v.marca, v.modelo, v.tipo, cli.id AS cliente_id, cli.nombre AS cliente_nombre
                 FROM vehiculos v
@@ -920,7 +943,7 @@ def mensualidades_nuevo():
         cliente_id = row_v["cliente_id"]
 
         try:
-            services.registrar_mensualidad(
+            mensualidad_id = services.registrar_mensualidad(
                 conn=conn,
                 vehiculo_id=int(vehiculo_id),
                 cliente_id=cliente_id,
@@ -962,7 +985,6 @@ def mensualidades_nuevo():
     hoy = date.today()
     primer_dia = date(hoy.year, hoy.month, 1).strftime("%Y-%m-%d")
     periodo_def = hoy.strftime("%Y-%m")
-    # Fin del mes
     if hoy.month == 12:
         ultimo_dia = date(hoy.year, 12, 31).strftime("%Y-%m-%d")
     else:
@@ -982,12 +1004,123 @@ def mensualidades_nuevo():
     return render_template("mensualidades/form.html", vehiculos=vehiculos, datos=datos_defecto)
 
 
+@app.route("/mensualidades/<int:id>")
+@app.route("/pagos/<int:id>")
+@login_required
+def mensualidades_detalle(id):
+    """Consulta el detalle completo de un pago o mensualidad registrada."""
+    conn = get_db()
+    pago = services.get_pago_por_id(conn, id)
+    if not pago:
+        flash("La transacción o mensualidad especificada no existe.", "danger")
+        return redirect(url_for("mensualidades_index"))
+
+    return render_template("mensualidades/detalle.html", pago=pago)
+
+
+@app.route("/mensualidades/<int:id>/comprobante")
+@app.route("/pagos/<int:id>/comprobante")
+@login_required
+def mensualidades_comprobante(id):
+    """Genera la vista de recibo o comprobante de pago oficial imprimible."""
+    conn = get_db()
+    pago = services.get_pago_por_id(conn, id)
+    if not pago:
+        flash("No se encontró el comprobante solicitado.", "danger")
+        return redirect(url_for("mensualidades_index"))
+
+    return render_template("mensualidades/comprobante.html", pago=pago)
+
+
+@app.route("/pagos/historial")
+@login_required
+def pagos_historial():
+    """Vista de historial general de transacciones de pago con filtros avanzados."""
+    periodo = request.args.get("periodo", "").strip()
+    estado = request.args.get("estado", "TODOS").strip().upper()
+    metodo = request.args.get("metodo", "TODOS").strip()
+    query = request.args.get("q", "").strip()
+    cliente_id = request.args.get("cliente_id", "").strip()
+    fecha_desde = request.args.get("fecha_desde", "").strip()
+    fecha_hasta = request.args.get("fecha_hasta", "").strip()
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    resumen = services.get_resumen_financiero(
+        conn=conn,
+        periodo=periodo or None,
+        fecha_desde=fecha_desde or None,
+        fecha_hasta=fecha_hasta or None,
+        cliente_id=int(cliente_id) if cliente_id else None
+    )
+
+    pagos = services.get_historial_pagos(
+        conn=conn,
+        query=query or None,
+        cliente_id=int(cliente_id) if cliente_id else None,
+        periodo=periodo or None,
+        fecha_desde=fecha_desde or None,
+        fecha_hasta=fecha_hasta or None,
+        estado=estado,
+        metodo_pago=metodo
+    )
+
+    cursor.execute("SELECT DISTINCT periodo FROM mensualidades ORDER BY periodo DESC;")
+    periodos_disponibles = [r["periodo"] for r in cursor.fetchall()]
+
+    return render_template(
+        "mensualidades/historial.html",
+        pagos=pagos,
+        resumen=resumen,
+        periodos_disponibles=periodos_disponibles,
+        periodo_seleccionado=periodo,
+        estado_seleccionado=estado,
+        metodo_seleccionado=metodo,
+        query_busqueda=query,
+        cliente_seleccionado=cliente_id,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta
+    )
+
+
+@app.route("/clientes/<int:cliente_id>/pagos", endpoint="clientes_pagos")
+@app.route("/cliente/<int:cliente_id>/pagos", endpoint="cliente_pagos")
+@login_required
+def clientes_pagos(cliente_id):
+    """Consulta todas las mensualidades y pagos registrados para un cliente específico."""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM clientes WHERE id = ?;", (cliente_id,))
+    cliente = cursor.fetchone()
+    if not cliente:
+        flash("Cliente no encontrado.", "danger")
+        return redirect(url_for("clientes_index"))
+
+    pagos = services.get_historial_pagos(conn, cliente_id=cliente_id)
+    resumen_cliente = services.get_resumen_financiero(conn, cliente_id=cliente_id)
+
+    return render_template(
+        "clientes/pagos.html",
+        cliente=cliente,
+        pagos=pagos,
+        resumen=resumen_cliente
+    )
+
+
 @app.route("/mensualidades/<int:id>/estado", methods=["POST"])
+@app.route("/pagos/<int:id>/estado", methods=["POST"])
 @login_required
 def mensualidades_cambiar_estado(id):
-    nuevo_estado = request.form.get("nuevo_estado", "").strip()
-    if nuevo_estado not in ("PAGADO", "PENDIENTE", "ANULADO"):
+    nuevo_estado = request.form.get("nuevo_estado", "").strip().upper()
+    if nuevo_estado not in ("PAGADO", "PENDIENTE", "VENCIDO", "ANULADO"):
         flash("Estado de mensualidad inválido.", "danger")
+        return redirect(url_for("mensualidades_index"))
+
+    # Regla de seguridad: Solo los administradores pueden anular pagos
+    if nuevo_estado == "ANULADO" and session.get("user_role") != "admin":
+        flash("Acceso denegado: Solo los administradores pueden anular comprobantes de pago.", "danger")
         return redirect(url_for("mensualidades_index"))
 
     conn = get_db()
@@ -995,7 +1128,7 @@ def mensualidades_cambiar_estado(id):
     cursor.execute("UPDATE mensualidades SET estado = ? WHERE id = ?;", (nuevo_estado, id))
     conn.commit()
 
-    flash(f"Estado de la mensualidad actualizado a '{nuevo_estado}'.", "info")
+    flash(f"Estado de la mensualidad #{id} actualizado a '{nuevo_estado}'.", "info")
     return redirect(url_for("mensualidades_index"))
 
 

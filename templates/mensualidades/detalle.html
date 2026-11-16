@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle de Pago REC-{{ "%05d"|format(pago.id) }}{% endblock %}
+{% block page_title %}Detalle de Transacción de Pago{% endblock %}
+{% block page_subtitle %}Información detallada, comprobante y trazabilidad de la mensualidad REC-{{ "%05d"|format(pago.id) }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('mensualidades_index') }}" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+  <span>Volver a Pagos</span>
+</a>
+<a href="{{ url_for('mensualidades_comprobante', id=pago.id) }}" class="btn btn-primary btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+  <span>Ver / Imprimir Comprobante</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem;">
+
+  <!-- Tarjeta de Encabezado y Estado de la Transacción -->
+  <div class="card" style="padding: 1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span class="cell-badge available" style="font-size: 0.9rem; font-weight: 700; padding: 0.35rem 0.75rem;">
+            REC-{{ "%05d"|format(pago.id) }}
+          </span>
+          <h2 style="font-size: 1.35rem; font-weight: 700; color: #fff; margin: 0;">Periodo {{ pago.periodo }}</h2>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.35rem; margin-bottom: 0;">
+          Transacción registrada el {{ pago.creado_en or pago.fecha_pago }}
+        </p>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <div style="text-align: right;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Estado de la Transacción</div>
+          <div style="margin-top: 0.25rem;">
+            {% if pago.estado == 'PAGADO' %}
+              <span class="badge badge-success" style="font-size: 0.85rem; padding: 0.35rem 0.85rem;">PAGADO</span>
+            {% elif pago.estado == 'PENDIENTE' %}
+              <span class="badge badge-warning" style="font-size: 0.85rem; padding: 0.35rem 0.85rem;">PENDIENTE</span>
+            {% elif pago.estado == 'VENCIDO' %}
+              <span class="badge badge-danger" style="font-size: 0.85rem; padding: 0.35rem 0.85rem; background: rgba(239, 68, 68, 0.2); color: #f87171;">VENCIDO</span>
+            {% else %}
+              <span class="badge badge-danger" style="font-size: 0.85rem; padding: 0.35rem 0.85rem;">ANULADO</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desglose en Cuadrícula -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+
+    <!-- Tarjeta 1: Información Financiera -->
+    <div class="card">
+      <div class="card-header">
+        <div class="section-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="1" x2="12" y2="23"></line>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+          <span>Información del Pago</span>
+        </div>
+      </div>
+      <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Monto Pagado:</span>
+          <span style="font-size: 1.6rem; font-weight: 800; color: #34d399;">{{ pago.valor | currency_cop }}</span>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Fecha de Pago:</span>
+          <strong style="color: #fff; font-size: 0.95rem;">{{ pago.fecha_pago | format_date }}</strong>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Método de Pago:</span>
+          <strong style="color: #fff; font-size: 0.95rem;">{{ pago.metodo_pago }}</strong>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Referencia / N° Operación:</span>
+          <strong style="color: var(--brand-accent); font-size: 0.95rem;">{{ pago.referencia_pago or 'Sin referencia registrada' }}</strong>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Periodo Cubierto:</span>
+          <strong style="color: #fff; font-size: 0.95rem;">{{ pago.periodo }}</strong>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Vigencia Cobertura:</span>
+          <span style="color: #fff; font-size: 0.9rem;">{{ pago.fecha_inicio | format_date }} al {{ pago.fecha_fin | format_date }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tarjeta 2: Cliente y Vehículo -->
+    <div class="card">
+      <div class="card-header">
+        <div class="section-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span>Cliente y Vehículo Afiliado</span>
+        </div>
+      </div>
+      <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Cliente Titular:</span>
+          <strong style="color: #fff; font-size: 1.05rem;">{{ pago.cliente_nombre }}</strong>
+          <div style="margin-top: 0.25rem;">
+            <a href="{{ url_for('clientes_pagos', cliente_id=pago.cliente_id) }}" style="font-size: 0.8rem; color: var(--brand-accent);">
+              Ver estado de cuenta completo &rarr;
+            </a>
+          </div>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Documento de Identidad:</span>
+          <span style="color: #fff;">{{ pago.cliente_tipo_documento }} {{ pago.cliente_documento }}</span>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Contacto:</span>
+          <span style="color: #fff;">Tel: {{ pago.cliente_telefono or 'N/A' }}</span>
+          {% if pago.cliente_email %}
+            <div style="font-size: 0.8rem; color: var(--text-muted);">{{ pago.cliente_email }}</div>
+          {% endif %}
+        </div>
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.25rem 0;">
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Vehículo Afiliado:</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+            <span class="plate-pill">{{ pago.placa }}</span>
+            <span style="font-weight: 600; color: #fff;">{{ pago.marca }} {{ pago.modelo }}</span>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Tipo: {{ pago.tipo_vehiculo }} | Color: {{ pago.color or 'N/A' }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Tarjeta 3: Auditoría, Trazabilidad y Observaciones (RNF-09, RF-14) -->
+  <div class="card">
+    <div class="card-header">
+      <div class="section-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span>Auditoría de Registro y Observaciones</span>
+      </div>
+    </div>
+    <div style="padding: 1.25rem;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Operador / Responsable:</span>
+          <strong style="color: #fff;">{{ pago.usuario_nombre or pago.usuario_username or 'Administrador General' }}</strong>
+          {% if pago.usuario_username %}
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Usuario: @{{ pago.usuario_username }}</div>
+          {% endif %}
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Fecha de Grabación en Sistema:</span>
+          <span style="color: #fff;">{{ pago.creado_en or pago.fecha_pago }}</span>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block;">Identificador de Mensualidad:</span>
+          <span style="color: #fff;">ID #{{ pago.id }}</span>
+        </div>
+      </div>
+
+      <div>
+        <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 0.35rem;">Observaciones Registradas:</span>
+        <div style="background-color: var(--bg-card); padding: 0.85rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); color: #e2e8f0; font-size: 0.9rem;">
+          {{ pago.observaciones or 'Sin observaciones adicionales registradas.' }}
+        </div>
+      </div>
+
+      <!-- Acciones de Gestión de Estado -->
+      <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          {% if pago.estado in ['PENDIENTE', 'VENCIDO'] %}
+            <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=pago.id) }}" style="display: inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="nuevo_estado" value="PAGADO">
+              <button type="submit" class="btn btn-primary btn-sm" data-confirm="¿Confirmar que este pago ya fue recibido y legalizar la mensualidad?">
+                Confirmar Pago Recibido (Marcar Pagado)
+              </button>
+            </form>
+          {% elif pago.estado == 'PAGADO' and session.get('user_role') == 'admin' %}
+            <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=pago.id) }}" style="display: inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="nuevo_estado" value="ANULADO">
+              <button type="submit" class="btn btn-outline btn-sm" data-confirm="¿Está seguro de anular este comprobante de pago? Esta acción registrará la transacción como anulada.">
+                <span style="color: var(--danger);">Anular Comprobante de Pago</span>
+              </button>
+            </form>
+          {% endif %}
+        </div>
+
+        <div style="display: flex; gap: 0.75rem;">
+          <a href="{{ url_for('mensualidades_index') }}" class="btn btn-secondary btn-sm">Volver</a>
+          <a href="{{ url_for('mensualidades_comprobante', id=pago.id) }}" class="btn btn-primary btn-sm">
+            Imprimir Comprobante
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Historial General de Pagos{% endblock %}
+{% block page_title %}Historial General de Pagos y Transacciones{% endblock %}
+{% block page_subtitle %}Libro mayor y registro cronológico de pagos, comprobantes y recaudos (RF-02, RF-14){% endblock %}
+
+{% block topbar_actions %}
+<button onclick="window.print()" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+  <span>Imprimir Reporte</span>
+</button>
+<a href="{{ url_for('mensualidades_nuevo') }}" class="btn btn-primary btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  <span>Registrar Pago</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Tarjetas de Resumen del Historial (RF-13) -->
+<div class="stats-grid" style="margin-bottom: 1.5rem;">
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Total Recaudado</span>
+      <div class="stat-icon green">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="1" x2="12" y2="23"></line>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: #34d399;">{{ resumen.total_recaudado | currency_cop }}</div>
+    <div class="stat-desc">
+      <span>{{ resumen.cantidad_pagos }} pago(s) legalizados</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Total de Registros</span>
+      <div class="stat-icon blue">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+          <line x1="1" y1="10" x2="23" y2="10"></line>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: #60a5fa;">{{ resumen.total_transacciones }}</div>
+    <div class="stat-desc">
+      <span>Transacciones bajo criterio</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Pendientes de Pago</span>
+      <div class="stat-icon amber">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: var(--warning);">{{ resumen.mensualidades_pendientes }}</div>
+    <div class="stat-desc">
+      <span>Cuentas por cobrar vigentes</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Mensualidades Vencidas</span>
+      <div class="stat-icon purple">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: var(--danger);">{{ resumen.mensualidades_vencidas }}</div>
+    <div class="stat-desc">
+      <span>Periodos no pagados expirados</span>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <!-- Filtros avanzados del Historial (RF-09) -->
+  <div class="card-header" style="flex-direction: column; align-items: stretch; gap: 1rem;">
+    <form method="GET" action="{{ url_for('pagos_historial') }}" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; width: 100%;">
+      <!-- Filtro Periodo -->
+      <div style="flex: 1; min-width: 140px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Periodo:</label>
+        <select name="periodo" onchange="this.form.submit()">
+          <option value="">Todos los periodos</option>
+          {% for p in periodos_disponibles %}
+            <option value="{{ p }}" {% if periodo_seleccionado == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Filtro Estado -->
+      <div style="flex: 1; min-width: 140px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Estado:</label>
+        <select name="estado" onchange="this.form.submit()">
+          <option value="TODOS" {% if estado_seleccionado == 'TODOS' or not estado_seleccionado %}selected{% endif %}>Todos los estados</option>
+          <option value="PAGADO" {% if estado_seleccionado == 'PAGADO' %}selected{% endif %}>PAGADO</option>
+          <option value="PENDIENTE" {% if estado_seleccionado == 'PENDIENTE' %}selected{% endif %}>PENDIENTE</option>
+          <option value="VENCIDO" {% if estado_seleccionado == 'VENCIDO' %}selected{% endif %}>VENCIDO</option>
+          <option value="ANULADO" {% if estado_seleccionado == 'ANULADO' %}selected{% endif %}>ANULADO</option>
+        </select>
+      </div>
+
+      <!-- Filtro Método -->
+      <div style="flex: 1; min-width: 160px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Método:</label>
+        <select name="metodo" onchange="this.form.submit()">
+          <option value="TODOS" {% if metodo_seleccionado == 'TODOS' or not metodo_seleccionado %}selected{% endif %}>Todos los métodos</option>
+          <option value="Efectivo" {% if metodo_seleccionado == 'Efectivo' %}selected{% endif %}>Efectivo</option>
+          <option value="Transferencia Bancolombia" {% if metodo_seleccionado == 'Transferencia Bancolombia' %}selected{% endif %}>Transferencia Bancolombia</option>
+          <option value="Nequi / Daviplata" {% if metodo_seleccionado == 'Nequi / Daviplata' %}selected{% endif %}>Nequi / Daviplata</option>
+          <option value="Tarjeta Débito/Crédito" {% if metodo_seleccionado == 'Tarjeta Débito/Crédito' %}selected{% endif %}>Tarjeta Débito/Crédito</option>
+          <option value="PSE / Botón Bancario" {% if metodo_seleccionado == 'PSE / Botón Bancario' %}selected{% endif %}>PSE / Botón Bancario</option>
+        </select>
+      </div>
+
+      <!-- Fechas de Pago Desde y Hasta -->
+      <div style="flex: 1; min-width: 130px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Fecha Desde:</label>
+        <input type="date" name="fecha_desde" value="{{ fecha_desde or '' }}" onchange="this.form.submit()">
+      </div>
+
+      <div style="flex: 1; min-width: 130px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Fecha Hasta:</label>
+        <input type="date" name="fecha_hasta" value="{{ fecha_hasta or '' }}" onchange="this.form.submit()">
+      </div>
+
+      <!-- Buscador -->
+      <div style="flex: 2; min-width: 180px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Buscar:</label>
+        <input type="text" name="q" value="{{ query_busqueda or '' }}" placeholder="Cliente, documento o placa..." autocomplete="off">
+      </div>
+
+      <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+        <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+        {% if periodo_seleccionado or (estado_seleccionado and estado_seleccionado != 'TODOS') or (metodo_seleccionado and metodo_seleccionado != 'TODOS') or fecha_desde or fecha_hasta or query_busqueda %}
+          <a href="{{ url_for('pagos_historial') }}" class="btn btn-outline btn-sm">Limpiar</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- Tabla del Historial -->
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Comprobante</th>
+          <th>Fecha Pago</th>
+          <th>Periodo</th>
+          <th>Cliente</th>
+          <th>Placa</th>
+          <th>Método de Pago</th>
+          <th>Referencia</th>
+          <th>Operador</th>
+          <th>Valor</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pagos %}
+          <tr>
+            <td>
+              <span class="cell-badge available" style="font-size: 0.75rem; font-weight: 700;">
+                REC-{{ "%05d"|format(p.id) }}
+              </span>
+            </td>
+            <td>
+              <strong style="color: #fff;">{{ p.fecha_pago | format_date }}</strong>
+            </td>
+            <td>
+              <strong style="color: var(--brand-accent);">{{ p.periodo }}</strong>
+            </td>
+            <td>
+              <div><a href="{{ url_for('clientes_pagos', cliente_id=p.cliente_id) }}" style="color: var(--brand-accent); font-weight: 600;">{{ p.cliente_nombre }}</a></div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">{{ p.cliente_tipo_documento }} {{ p.cliente_documento }}</div>
+            </td>
+            <td>
+              <span class="plate-pill">{{ p.placa }}</span>
+            </td>
+            <td>{{ p.metodo_pago }}</td>
+            <td>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">{{ p.referencia_pago or '-' }}</span>
+            </td>
+            <td>
+              <span style="font-size: 0.8rem; color: #94a3b8;">{{ p.usuario_nombre or p.usuario_username or 'Admin' }}</span>
+            </td>
+            <td>
+              <strong style="color: #34d399; font-size: 0.95rem;">{{ p.valor | currency_cop }}</strong>
+            </td>
+            <td>
+              {% if p.estado == 'PAGADO' %}
+                <span class="badge badge-success">Pagado</span>
+              {% elif p.estado == 'PENDIENTE' %}
+                <span class="badge badge-warning">Pendiente</span>
+              {% elif p.estado == 'VENCIDO' %}
+                <span class="badge badge-danger" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">Vencido</span>
+              {% else %}
+                <span class="badge badge-danger">Anulado</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display: flex; gap: 0.35rem; align-items: center;">
+                <a href="{{ url_for('mensualidades_comprobante', id=p.id) }}" class="btn btn-outline btn-sm" title="Imprimir Recibo">
+                  Recibo
+                </a>
+                <a href="{{ url_for('mensualidades_detalle', id=p.id) }}" class="btn btn-outline btn-sm" title="Ver Detalle">
+                  Detalle
+                </a>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="11" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              No se encontraron registros de transacciones con los filtros indicados.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+

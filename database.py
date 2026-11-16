@@ -160,6 +160,9 @@ def init_db(db_path=None):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_movimientos_celda ON movimientos(celda_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_mensualidades_periodo ON mensualidades(periodo);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_mensualidades_vehiculo ON mensualidades(vehiculo_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_mensualidades_cliente ON mensualidades(cliente_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_mensualidades_fecha_pago ON mensualidades(fecha_pago);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_mensualidades_estado ON mensualidades(estado);")
 
     conn.commit()
 

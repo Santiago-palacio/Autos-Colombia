@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comprobante de Pago REC-{{ "%05d"|format(pago.id) }} - Autos Colombia</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #0b0f19;
+      color: #e2e8f0;
+      padding: 2rem 1rem;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .receipt-container {
+      max-width: 680px;
+      margin: 0 auto;
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+
+    .receipt-header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      padding: 2rem;
+      border-bottom: 2px dashed #334155;
+      text-align: center;
+      position: relative;
+    }
+
+    .receipt-badge {
+      display: inline-block;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      border-radius: 9999px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+    .badge-PAGADO { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+    .badge-PENDIENTE { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
+    .badge-VENCIDO { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+    .badge-ANULADO { background: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid #64748b; }
+
+    .receipt-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0;
+      letter-spacing: -0.025em;
+    }
+
+    .receipt-subtitle {
+      color: #94a3b8;
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+    }
+
+    .receipt-number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-top: 0.75rem;
+    }
+
+    .receipt-body {
+      padding: 2rem;
+    }
+
+    .info-section {
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid #1f2937;
+    }
+    .info-section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.075em;
+      color: #38bdf8;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.85rem 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .info-item .item-label {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-bottom: 0.15rem;
+    }
+
+    .info-item .item-value {
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .amount-box {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1.5rem;
+    }
+
+    .amount-label {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+
+    .amount-value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #34d399;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .receipt-footer {
+      background: #0f172a;
+      padding: 1.25rem 2rem;
+      border-top: 1px solid #1f2937;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    .receipt-actions {
+      max-width: 680px;
+      margin: 1.5rem auto 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .receipt-actions {
+        display: none !important;
+      }
+      .receipt-container {
+        border: 2px solid #000000 !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        border-radius: 0 !important;
+        max-width: 100% !important;
+      }
+      .receipt-header {
+        background: #f8fafc !important;
+        border-bottom: 2px dashed #000000 !important;
+      }
+      .receipt-title, .receipt-number, .info-item .item-value {
+        color: #000000 !important;
+      }
+      .receipt-subtitle, .info-item .item-label, .receipt-footer {
+        color: #334155 !important;
+      }
+      .amount-box {
+        background: #f8fafc !important;
+        border: 2px solid #000000 !important;
+      }
+      .amount-label, .amount-value {
+        color: #000000 !important;
+      }
+      .badge-PAGADO, .badge-PENDIENTE, .badge-VENCIDO, .badge-ANULADO {
+        border: 1px solid #000000 !important;
+        color: #000000 !important;
+        background: #ffffff !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="receipt-actions">
+    <a href="{{ url_for('mensualidades_index') }}" class="btn btn-secondary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      <span>Volver a Pagos</span>
+    </a>
+    <button type="button" class="btn btn-primary" onclick="window.print()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+      <span>Imprimir / Guardar PDF</span>
+    </button>
+  </div>
+
+  <div class="receipt-container" id="comprobante-pago">
+    <!-- Encabezado Oficial -->
+    <div class="receipt-header">
+      <div class="receipt-badge badge-{{ pago.estado }}">
+        {{ pago.estado }}
+      </div>
+      <h1 class="receipt-title">AUTOS COLOMBIA</h1>
+      <div class="receipt-subtitle">Sistema de Control Operativo y Parqueadero por Mensualidades</div>
+      <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.2rem;">NIT: 900.854.120-1 | PBX: (601) 345-6789 | Bogotá D.C., Colombia</div>
+      <div class="receipt-number">COMPROBANTE N° REC-{{ "%05d"|format(pago.id) }}</div>
+    </div>
+
+    <!-- Cuerpo del Comprobante -->
+    <div class="receipt-body">
+      <!-- 1. Datos del Cliente -->
+      <div class="info-section">
+        <div class="section-label">Datos del Cliente Afiliado</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="item-label">Nombre Completo:</span>
+            <span class="item-value">{{ pago.cliente_nombre }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Identificación:</span>
+            <span class="item-value">{{ pago.cliente_tipo_documento }} {{ pago.cliente_documento }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Teléfono de Contacto:</span>
+            <span class="item-value">{{ pago.cliente_telefono }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Correo Electrónico:</span>
+            <span class="item-value">{{ pago.cliente_email or 'No registrado' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Información del Vehículo y Mensualidad -->
+      <div class="info-section">
+        <div class="section-label">Detalle de la Mensualidad y Vehículo</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="item-label">Placa del Vehículo:</span>
+            <span class="item-value" style="font-family: 'JetBrains Mono', monospace; font-size: 1.05rem; color: #38bdf8;">{{ pago.placa }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Vehículo:</span>
+            <span class="item-value">{{ pago.marca }} {{ pago.modelo }} ({{ pago.color }})</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Tipo de Vehículo:</span>
+            <span class="item-value">{{ pago.tipo_vehiculo }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Periodo Cubierto:</span>
+            <span class="item-value" style="color: #38bdf8; font-weight: 700;">{{ pago.periodo }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Fecha Inicio Cobertura:</span>
+            <span class="item-value">{{ pago.fecha_inicio | format_date }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Fecha Fin Cobertura:</span>
+            <span class="item-value">{{ pago.fecha_fin | format_date }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Información Financiera y Transacción -->
+      <div class="info-section">
+        <div class="section-label">Detalles de la Transacción</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="item-label">Fecha y Hora de Pago:</span>
+            <span class="item-value">{{ pago.fecha_pago | format_date }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Método de Pago:</span>
+            <span class="item-value">{{ pago.metodo_pago }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Referencia / No. Aprobación:</span>
+            <span class="item-value">{{ pago.referencia_pago or 'Sin referencia registrada' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="item-label">Registrado / Operado por:</span>
+            <span class="item-value">{{ pago.usuario_nombre or 'Sistema Central' }}</span>
+          </div>
+          <div class="info-item" style="grid-column: span 2;">
+            <span class="item-label">Observaciones:</span>
+            <span class="item-value" style="font-weight: normal; color: #cbd5e1;">{{ pago.observaciones or 'Sin observaciones registradas' }}</span>
+          </div>
+        </div>
+
+        <!-- Caja de Monto Total -->
+        <div class="amount-box">
+          <div class="amount-label">TOTAL CANCELADO:</div>
+          <div class="amount-value">{{ pago.valor | currency_cop }} COP</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pie de Comprobante -->
+    <div class="receipt-footer">
+      <div>Este documento es un comprobante válido y oficial de cancelación de mensualidad emitido por Autos Colombia.</div>
+      <div style="margin-top: 0.25rem;">Consérvelo como soporte de estancia vehicular y control de cupo en el parqueadero.</div>
+      <div style="margin-top: 0.5rem; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #475569;">
+        ID Registro: {{ pago.id }} | Emisión: {{ pago.creado_en or pago.fecha_pago }} | Autos Colombia v2.0
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
+

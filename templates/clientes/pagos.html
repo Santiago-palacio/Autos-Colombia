@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Pagos de {{ cliente.nombre }}{% endblock %}
+{% block page_title %}Historial de Pagos del Cliente{% endblock %}
+{% block page_subtitle %}Estado de cuenta y mensualidades de {{ cliente.nombre }} ({{ cliente.tipo_documento }} {{ cliente.documento }}){% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('clientes_index') }}" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+  <span>Volver a Clientes</span>
+</a>
+<a href="{{ url_for('mensualidades_nuevo') }}" class="btn btn-primary btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  <span>Registrar Pago</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Tarjetas de Información y Resumen del Cliente -->
+<div class="stats-grid" style="margin-bottom: 1.5rem;">
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Total Pagado Histórico</span>
+      <div class="stat-icon green">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="1" x2="12" y2="23"></line>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: #34d399;">{{ resumen.total_recaudado | currency_cop }}</div>
+    <div class="stat-desc">
+      <span>{{ resumen.cantidad_pagos }} mensualidad(es) cancelada(s)</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Mensualidades Pendientes</span>
+      <div class="stat-icon amber">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+          <line x1="1" y1="10" x2="23" y2="10"></line>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: var(--warning);">{{ resumen.mensualidades_pendientes }}</div>
+    <div class="stat-desc">
+      <span>En espera de confirmación de pago</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Mensualidades Vencidas</span>
+      <div class="stat-icon purple">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: var(--danger);">{{ resumen.mensualidades_vencidas }}</div>
+    <div class="stat-desc">
+      <span>Periodos con fecha fin expirada sin pago</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Contacto del Cliente</span>
+      <div class="stat-icon blue">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+        </svg>
+      </div>
+    </div>
+    <div style="font-weight: 600; color: #fff; font-size: 1rem; margin-top: 0.25rem;">{{ cliente.telefono }}</div>
+    <div class="stat-desc">
+      <span>{{ cliente.email or 'Sin correo' }} | {{ cliente.direccion or 'Sin dirección' }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="section-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+        <line x1="1" y1="10" x2="23" y2="10"></line>
+      </svg>
+      <span>Registro de Transacciones del Cliente ({{ pagos | length }})</span>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Comprobante</th>
+          <th>Periodo</th>
+          <th>Vehículo / Placa</th>
+          <th>Cobertura</th>
+          <th>Valor</th>
+          <th>Fecha Pago</th>
+          <th>Método de Pago</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pagos %}
+          <tr>
+            <td>
+              <code>REC-{{ "%05d"|format(p.id) }}</code>
+            </td>
+            <td>
+              <strong style="color: var(--brand-accent);">{{ p.periodo }}</strong>
+            </td>
+            <td>
+              <span class="plate-pill">{{ p.placa }}</span>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">{{ p.marca }} {{ p.modelo }}</div>
+            </td>
+            <td>
+              <span style="font-size: 0.8rem;">{{ p.fecha_inicio | format_date }} al {{ p.fecha_fin | format_date }}</span>
+            </td>
+            <td>
+              <strong style="color: #34d399;">{{ p.valor | currency_cop }}</strong>
+            </td>
+            <td>{{ p.fecha_pago | format_date }}</td>
+            <td>
+              <div>{{ p.metodo_pago }}</div>
+              {% if p.referencia_pago %}
+                <span style="font-size: 0.72rem; color: var(--text-muted);">Ref: {{ p.referencia_pago }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if p.estado == 'PAGADO' %}
+                <span class="badge badge-success">Pagado</span>
+              {% elif p.estado == 'PENDIENTE' %}
+                <span class="badge badge-warning">Pendiente</span>
+              {% elif p.estado == 'VENCIDO' %}
+                <span class="badge badge-danger">Vencido</span>
+              {% else %}
+                <span class="badge badge-secondary">Anulado</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group">
+                <a href="{{ url_for('mensualidades_detalle', id=p.id) }}" class="btn btn-outline btn-sm" title="Ver detalle de la transacción">
+                  Detalle
+                </a>
+                <a href="{{ url_for('mensualidades_comprobante', id=p.id) }}" class="btn btn-outline btn-sm" title="Imprimir Comprobante" target="_blank">
+                  Recibo
+                </a>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              Este cliente no tiene pagos ni mensualidades registradas hasta el momento.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+

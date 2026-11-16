@@ -43,10 +43,14 @@
           <span>Celdas y Ocupación</span>
         </a>
 
-        <div class="nav-section-title">Suscripciones y Clientes</div>
-        <a href="{{ url_for('mensualidades_index') }}" class="nav-item {% if request.endpoint and 'mensualidades' in request.endpoint %}active{% endif %}">
+        <div class="nav-section-title">Gestión de Pagos y Clientes</div>
+        <a href="{{ url_for('mensualidades_index') }}" class="nav-item {% if request.endpoint and ('mensualidades' in request.endpoint or request.endpoint == 'pagos') and request.endpoint != 'pagos_historial' %}active{% endif %}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-          <span>Mensualidades</span>
+          <span>Gestión de Pagos</span>
+        </a>
+        <a href="{{ url_for('pagos_historial') }}" class="nav-item {% if request.endpoint == 'pagos_historial' %}active{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+          <span>Historial de Pagos</span>
         </a>
         <a href="{{ url_for('vehiculos_index') }}" class="nav-item {% if request.endpoint and 'vehiculos' in request.endpoint %}active{% endif %}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>

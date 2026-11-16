@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Mensualidades{% endblock %}
-{% block page_title %}Gestión de Mensualidades y Pagos{% endblock %}
-{% block page_subtitle %}Control de pagos mensuales, periodos de cobertura y comprobantes{% endblock %}
+{% block title %}Gestión de Pagos y Mensualidades{% endblock %}
+{% block page_title %}Gestión de Pagos y Mensualidades{% endblock %}
+{% block page_subtitle %}Control de transacciones, recaudos, comprobantes y vencimientos del parqueadero{% endblock %}
 
 {% block topbar_actions %}
+<a href="{{ url_for('pagos_historial') }}" class="btn btn-outline btn-sm">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+  <span>Historial Completo</span>
+</a>
 <a href="{{ url_for('mensualidades_nuevo') }}" class="btn btn-primary btn-sm">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
   <span>Registrar Pago</span>
@@ -12,11 +16,80 @@
 {% endblock %}
 
 {% block content %}
+<!-- Resumen Financiero y KPIs (RF-13) -->
+<div class="stats-grid" style="margin-bottom: 1.5rem;">
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Total Recaudado</span>
+      <div class="stat-icon green">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="1" x2="12" y2="23"></line>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: #34d399;">{{ resumen.total_recaudado | currency_cop }}</div>
+    <div class="stat-desc">
+      <span>{{ resumen.cantidad_pagos }} pago(s) confirmados</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Pagos Confirmados</span>
+      <div class="stat-icon blue">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: #60a5fa;">{{ resumen.cantidad_pagos }}</div>
+    <div class="stat-desc">
+      <span>Transacciones exitosas activas</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Mensualidades Pendientes</span>
+      <div class="stat-icon amber">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: var(--warning);">{{ resumen.mensualidades_pendientes }}</div>
+    <div class="stat-desc">
+      <span>Por confirmar o legalizar</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Mensualidades Vencidas</span>
+      <div class="stat-icon purple">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: var(--danger);">{{ resumen.mensualidades_vencidas }}</div>
+    <div class="stat-desc">
+      <span>Plazo expirado sin cancelar</span>
+    </div>
+  </div>
+</div>
+
 <div class="card">
-  <!-- Filtros de búsqueda -->
-  <div class="card-header">
-    <form method="GET" action="{{ url_for('mensualidades_index') }}" class="filter-bar" style="margin-bottom: 0; width: 100%;">
-      <div style="min-width: 180px;">
+  <!-- Filtros de búsqueda avanzados (RF-06, RF-08, RF-09) -->
+  <div class="card-header" style="flex-direction: column; align-items: stretch; gap: 1rem;">
+    <form method="GET" action="{{ url_for('mensualidades_index') }}" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; width: 100%;">
+      <!-- Filtro por Periodo -->
+      <div style="flex: 1; min-width: 140px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Periodo:</label>
         <select name="periodo" onchange="this.form.submit()">
           <option value="">Todos los periodos</option>
           {% for p in periodos_disponibles %}
@@ -25,29 +98,63 @@
         </select>
       </div>
 
-      <div style="min-width: 180px;">
+      <!-- Filtro por Estado -->
+      <div style="flex: 1; min-width: 140px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Estado:</label>
         <select name="estado" onchange="this.form.submit()">
           <option value="TODOS" {% if estado_seleccionado == 'TODOS' or not estado_seleccionado %}selected{% endif %}>Todos los estados</option>
           <option value="PAGADO" {% if estado_seleccionado == 'PAGADO' %}selected{% endif %}>PAGADO</option>
           <option value="PENDIENTE" {% if estado_seleccionado == 'PENDIENTE' %}selected{% endif %}>PENDIENTE</option>
+          <option value="VENCIDO" {% if estado_seleccionado == 'VENCIDO' %}selected{% endif %}>VENCIDO</option>
           <option value="ANULADO" {% if estado_seleccionado == 'ANULADO' %}selected{% endif %}>ANULADO</option>
         </select>
       </div>
 
-      <div class="search-input-wrapper">
-        <input type="text" data-live-filter="tabla-mensualidades" placeholder="Filtrar por placa, cliente o método..." autocomplete="off">
+      <!-- Filtro por Método de Pago -->
+      <div style="flex: 1; min-width: 160px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Método:</label>
+        <select name="metodo" onchange="this.form.submit()">
+          <option value="TODOS" {% if metodo_seleccionado == 'TODOS' or not metodo_seleccionado %}selected{% endif %}>Todos los métodos</option>
+          {% for mtd in metodos_disponibles %}
+            <option value="{{ mtd }}" {% if metodo_seleccionado == mtd %}selected{% endif %}>{{ mtd }}</option>
+          {% endfor %}
+        </select>
       </div>
 
-      {% if periodo_seleccionado or (estado_seleccionado and estado_seleccionado != 'TODOS') %}
-        <a href="{{ url_for('mensualidades_index') }}" class="btn btn-outline">Restablecer</a>
-      {% endif %}
+      <!-- Fechas de Pago (Desde / Hasta) -->
+      <div style="flex: 1; min-width: 130px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Pago Desde:</label>
+        <input type="date" name="fecha_desde" value="{{ fecha_desde or '' }}" onchange="this.form.submit()">
+      </div>
+
+      <div style="flex: 1; min-width: 130px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Pago Hasta:</label>
+        <input type="date" name="fecha_hasta" value="{{ fecha_hasta or '' }}" onchange="this.form.submit()">
+      </div>
+
+      <!-- Búsqueda textual por placa, cliente o referencia -->
+      <div style="flex: 2; min-width: 200px;">
+        <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">Buscar cliente o placa:</label>
+        <div class="search-input-wrapper">
+          <input type="text" name="q" value="{{ query_busqueda or '' }}" placeholder="Placa, cliente o ref..." autocomplete="off">
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+        <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+        {% if periodo_seleccionado or (estado_seleccionado and estado_seleccionado != 'TODOS') or (metodo_seleccionado and metodo_seleccionado != 'TODOS') or fecha_desde or fecha_hasta or query_busqueda %}
+          <a href="{{ url_for('mensualidades_index') }}" class="btn btn-outline btn-sm">Limpiar</a>
+        {% endif %}
+      </div>
     </form>
   </div>
 
+  <!-- Tabla de Mensualidades y Pagos -->
   <div class="table-responsive">
     <table id="tabla-mensualidades">
       <thead>
         <tr>
+          <th>Comprobante</th>
           <th>Periodo</th>
           <th>Placa</th>
           <th>Vehículo</th>
@@ -55,7 +162,7 @@
           <th>Cobertura</th>
           <th>Valor Pagado</th>
           <th>Fecha Pago</th>
-          <th>Método y Referencia</th>
+          <th>Método y Ref</th>
           <th>Estado</th>
           <th>Acciones</th>
         </tr>
@@ -63,6 +170,11 @@
       <tbody>
         {% for m in mensualidades %}
           <tr>
+            <td>
+              <span class="cell-badge available" style="font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em;">
+                REC-{{ "%05d"|format(m.id) }}
+              </span>
+            </td>
             <td>
               <strong style="color: var(--brand-accent); font-size: 0.95rem;">{{ m.periodo }}</strong>
             </td>
@@ -74,8 +186,8 @@
               <div style="font-size: 0.74rem; color: var(--text-muted);">{{ m.tipo_vehiculo }}</div>
             </td>
             <td>
-              <div>{{ m.cliente_nombre }}</div>
-              <div style="font-size: 0.74rem; color: var(--text-muted);">Tel: {{ m.cliente_telefono }}</div>
+              <div><a href="{{ url_for('clientes_pagos', cliente_id=m.cliente_id) }}" style="color: var(--brand-accent); font-weight: 600;" title="Ver todos los pagos del cliente">{{ m.cliente_nombre }}</a></div>
+              <div style="font-size: 0.74rem; color: var(--text-muted);">Tel: {{ m.cliente_telefono or 'N/A' }}</div>
             </td>
             <td>
               <span style="font-size: 0.8rem;">{{ m.fecha_inicio | format_date }} al {{ m.fecha_fin | format_date }}</span>
@@ -95,38 +207,52 @@
                 <span class="badge badge-success">Pagado</span>
               {% elif m.estado == 'PENDIENTE' %}
                 <span class="badge badge-warning">Pendiente</span>
+              {% elif m.estado == 'VENCIDO' %}
+                <span class="badge badge-danger" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);">Vencido</span>
               {% else %}
                 <span class="badge badge-danger">Anulado</span>
               {% endif %}
             </td>
             <td>
-              {% if m.estado == 'PAGADO' %}
-                <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=m.id) }}" style="display: inline;">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="nuevo_estado" value="ANULADO">
-                  <button type="submit" class="btn btn-outline btn-sm" 
-                          data-confirm="¿Está seguro de anular este comprobante de pago?">
-                    <span style="color: var(--danger);">Anular</span>
-                  </button>
-                </form>
-              {% elif m.estado == 'PENDIENTE' %}
-                <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=m.id) }}" style="display: inline;">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="nuevo_estado" value="PAGADO">
-                  <button type="submit" class="btn btn-outline btn-sm"
-                          data-confirm="¿Confirmar el pago de esta mensualidad?">
-                    <span style="color: var(--success);">Marcar Pagado</span>
-                  </button>
-                </form>
-              {% else %}
-                <span style="color: var(--text-muted); font-size: 0.75rem;">Sin acción</span>
-              {% endif %}
+              <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
+                <!-- Ver Recibo / Comprobante (RF-05) -->
+                <a href="{{ url_for('mensualidades_comprobante', id=m.id) }}" class="btn btn-outline btn-sm" title="Imprimir Comprobante Oficial">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                  <span>Recibo</span>
+                </a>
+
+                <!-- Ver Detalle (RF-11) -->
+                <a href="{{ url_for('mensualidades_detalle', id=m.id) }}" class="btn btn-outline btn-sm" title="Consultar Detalle de Transacción">
+                  <span>Detalle</span>
+                </a>
+
+                <!-- Acciones de Estado -->
+                {% if m.estado in ['PENDIENTE', 'VENCIDO'] %}
+                  <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=m.id) }}" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="nuevo_estado" value="PAGADO">
+                    <button type="submit" class="btn btn-outline btn-sm" data-confirm="¿Confirmar el pago y legalizar la mensualidad?">
+                      <span style="color: var(--success);">Marcar Pagado</span>
+                    </button>
+                  </form>
+                {% elif m.estado == 'PAGADO' %}
+                  {% if session.get('user_role') == 'admin' %}
+                    <form method="POST" action="{{ url_for('mensualidades_cambiar_estado', id=m.id) }}" style="display: inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="nuevo_estado" value="ANULADO">
+                      <button type="submit" class="btn btn-outline btn-sm" data-confirm="¿Está seguro de anular este comprobante de pago? Esta acción solo la puede realizar un administrador.">
+                        <span style="color: var(--danger);">Anular</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              </div>
             </td>
           </tr>
         {% else %}
           <tr>
-            <td colspan="10" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
-              No se registran mensualidades con los filtros seleccionados.
+            <td colspan="11" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+              No se registran transacciones o mensualidades con los criterios seleccionados.
             </td>
           </tr>
         {% endfor %}

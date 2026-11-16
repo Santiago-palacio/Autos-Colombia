@@ -43,6 +43,28 @@ Sistema web integral desarrollado en Python con Flask y SQLite para la administr
   - Clave secreta configurable por variable de entorno (`AUTOSCOLOMBIA_SECRET_KEY`).
   - Configuración estricta de cookies de sesión (`HttpOnly`, `SameSite=Lax`).
 
+### Iteración 3 (Gestión Financiera, Pagos y Recaudos de Mensualidades)
+- **Registro y Control de Pagos (RF-01, RF-03, RF-04, RNF-02, RNF-04)**:
+  - Registro de pagos asociados a cliente titular y vehículo afiliado.
+  - Selección de métodos de pago (Efectivo, Transferencia Bancolombia, Nequi/Daviplata, Tarjeta Débito/Crédito, PSE).
+  - Validación de montos positivos y coherencia de vigencia de cobertura (`fecha_inicio <= fecha_fin`).
+  - Detección y bloqueo estricto de duplicidad de pagos para el mismo periodo y vehículo (RF-10, RNF-08).
+- **Emisión de Comprobantes Oficiales (RF-05, RF-11)**:
+  - Generación de recibos con código único correlativo (`REC-XXXXX`).
+  - Vista limpia optimizada para impresión en papel o guardado en PDF (`@media print` sin elementos de navegación).
+  - Consulta de detalle de cada transacción con trazabilidad y auditoría (operador responsable y fecha de registro).
+- **Gestión de Estados y Vencimientos (RF-07, RF-08)**:
+  - Transición automática y detección en tiempo real de mensualidades en mora o vencidas (`VENCIDO`).
+  - Visualización del estado del pago: `PAGADO`, `PENDIENTE`, `VENCIDO`, `ANULADO`.
+- **Historial General y Libro Mayor (RF-02, RF-06, RF-09, RF-14)**:
+  - Libro mayor de transacciones con filtrado por cliente, periodo, estado, método de pago y rango de fechas.
+  - Vista de estado de cuenta individual por cliente (`/clientes/<id>/pagos`).
+- **Resumen Financiero y KPIs en Vivo (RF-13)**:
+  - Indicadores clave de recaudo: Total Recaudado ($ COP), Pagos Confirmados, Pendientes y Vencidas.
+- **Control de Permisos Financieros (RF-12, RNF-05)**:
+  - Los operadores pueden registrar pagos, consultar estados y generar comprobantes.
+  - La anulación de comprobantes está restringida estrictamente a usuarios administradores.
+
 ---
 
 ## 🛠️ Tecnologías Utilizadas
@@ -75,8 +97,8 @@ Autoscolombia/
 │   ├── dashboard.html         # Panel de métricas y mapa visual
 │   ├── 403.html / 404.html / 500.html # Páginas de error y acceso denegado
 │   ├── celdas/                # Vistas de celdas (listado, edición)
-│   ├── clientes/              # Vistas de clientes (listado, creación, edición)
-│   ├── mensualidades/         # Vistas de mensualidades y pagos
+│   ├── clientes/              # Vistas de clientes (listado, creación, edición, estado de cuenta pagos)
+│   ├── mensualidades/         # Vistas de pagos, recibos imprimibles, detalle e historial mayor
 │   ├── movimientos/           # Vistas de estancias activas e historial
 │   ├── novedades/             # Bitácora de incidentes
 │   └── usuarios/              # Vistas de administración de usuarios (Iteración 2)
@@ -85,7 +107,8 @@ Autoscolombia/
     ├── test_services.py       # Pruebas de reglas de negocio en capa de servicios
     ├── test_routes.py         # Pruebas de integración HTTP de la Iteración 1
     ├── test_celdas.py         # Pruebas de la gestión de celdas (Iteración 2)
-    └── test_usuarios.py       # Pruebas de usuarios, roles y RBAC (Iteración 2)
+    ├── test_usuarios.py       # Pruebas de usuarios, roles y RBAC (Iteración 2)
+    └── test_pagos.py          # Pruebas de pagos, comprobantes, KPIs e integridad (Iteración 3)
 ```
 
 ---
@@ -140,7 +163,7 @@ El sistema inicializa automáticamente dos cuentas de demostración:
 
 ## 🧪 Ejecución de Pruebas Automatizadas
 
-Para ejecutar la suite completa de 37 pruebas unitarias y de integración:
+Para ejecutar la suite completa de 49 pruebas unitarias y de integración:
 
 ```bash
 python -m pytest

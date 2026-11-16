@@ -6,10 +6,26 @@ from datetime import datetime, date
 import sqlite3
 
 
+def actualizar_estados_vencidos(conn):
+    """
+    Actualiza automáticamente a 'VENCIDO' aquellas mensualidades en estado 'PENDIENTE'
+    cuya fecha de fin ya expiró respecto a la fecha actual.
+    """
+    cursor = conn.cursor()
+    hoy_str = date.today().strftime("%Y-%m-%d")
+    cursor.execute("""
+        UPDATE mensualidades
+        SET estado = 'VENCIDO'
+        WHERE estado = 'PENDIENTE' AND fecha_fin < ?;
+    """, (hoy_str,))
+    conn.commit()
+
+
 def get_dashboard_stats(conn):
     """
     Obtiene las métricas clave para el panel principal (dashboard).
     """
+    actualizar_estados_vencidos(conn)
     cursor = conn.cursor()
 
     # 1. Vehículos dentro actualmente
@@ -223,12 +239,19 @@ def registrar_salida(conn, movimiento_id, observaciones_salida=""):
 
 
 def registrar_mensualidad(conn, vehiculo_id, cliente_id, periodo, fecha_inicio, fecha_fin, 
-                          valor, fecha_pago, metodo_pago, referencia_pago="", estado="PAGADO", 
+                          valor, fecha_pago, metodo_pago="Efectivo", referencia_pago="", estado="PAGADO", 
                           observaciones="", usuario_id=None):
     """
     Registra el pago de una mensualidad. Impide registrar pagos duplicados para el mismo vehículo y periodo.
+    Valida campos obligatorios, valores numéricos positivos y coherencia de fechas.
     """
     cursor = conn.cursor()
+
+    if not vehiculo_id or not cliente_id or not periodo or not fecha_inicio or not fecha_fin or not fecha_pago or not metodo_pago:
+        raise ValueError("Todos los campos obligatorios del pago deben ser diligenciados.")
+
+    if str(fecha_inicio) > str(fecha_fin):
+        raise ValueError("La fecha de inicio del periodo no puede ser posterior a la fecha de fin.")
 
     # Validar duplicados de periodo para el vehículo
     cursor.execute("""
@@ -244,8 +267,15 @@ def registrar_mensualidad(conn, vehiculo_id, cliente_id, periodo, fecha_inicio, 
         valor_float = float(valor)
         if valor_float <= 0:
             raise ValueError("El valor de la mensualidad debe ser mayor a cero.")
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        if "mayor a cero" in str(e):
+            raise
         raise ValueError("El valor ingresado no es un número válido.")
+
+    # Si se registra como pendiente pero la fecha_fin ya pasó, asignar a VENCIDO
+    estado_final = estado
+    if estado == "PENDIENTE" and str(fecha_fin) < date.today().strftime("%Y-%m-%d"):
+        estado_final = "VENCIDO"
 
     cursor.execute("""
         INSERT INTO mensualidades 
@@ -254,12 +284,159 @@ def registrar_mensualidad(conn, vehiculo_id, cliente_id, periodo, fecha_inicio, 
     """, (
         vehiculo_id, cliente_id, periodo, fecha_inicio, fecha_fin,
         valor_float, fecha_pago, metodo_pago, referencia_pago.strip() if referencia_pago else None,
-        estado, observaciones.strip() if observaciones else None, usuario_id
+        estado_final, observaciones.strip() if observaciones else None, usuario_id
     ))
 
     mensualidad_id = cursor.lastrowid
     conn.commit()
     return mensualidad_id
+
+
+def get_resumen_financiero(conn, periodo=None, fecha_desde=None, fecha_hasta=None, cliente_id=None):
+    """
+    Calcula los indicadores financieros del parqueadero:
+    - Total recaudado (pagos completados 'PAGADO')
+    - Cantidad de pagos realizados
+    - Mensualidades pendientes
+    - Mensualidades vencidas
+    - Total de transacciones
+    """
+    actualizar_estados_vencidos(conn)
+    cursor = conn.cursor()
+
+    sql_base = "FROM mensualidades m WHERE 1=1"
+    params = []
+
+    if periodo and periodo.strip():
+        sql_base += " AND m.periodo = ?"
+        params.append(periodo.strip())
+
+    if fecha_desde and fecha_desde.strip():
+        sql_base += " AND date(m.fecha_pago) >= date(?)"
+        params.append(fecha_desde.strip())
+
+    if fecha_hasta and fecha_hasta.strip():
+        sql_base += " AND date(m.fecha_pago) <= date(?)"
+        params.append(fecha_hasta.strip())
+
+    if cliente_id:
+        sql_base += " AND m.cliente_id = ?"
+        params.append(cliente_id)
+
+    # 1. Total Recaudado (estado = 'PAGADO')
+    cursor.execute(f"SELECT COALESCE(SUM(m.valor), 0.0) AS total {sql_base} AND m.estado = 'PAGADO';", params)
+    total_recaudado = cursor.fetchone()["total"]
+
+    # 2. Cantidad de pagos realizados
+    cursor.execute(f"SELECT COUNT(*) AS total {sql_base} AND m.estado = 'PAGADO';", params)
+    cantidad_pagos = cursor.fetchone()["total"]
+
+    # 3. Mensualidades pendientes
+    cursor.execute(f"SELECT COUNT(*) AS total {sql_base} AND m.estado = 'PENDIENTE';", params)
+    mensualidades_pendientes = cursor.fetchone()["total"]
+
+    # 4. Mensualidades vencidas
+    cursor.execute(f"SELECT COUNT(*) AS total {sql_base} AND m.estado = 'VENCIDO';", params)
+    mensualidades_vencidas = cursor.fetchone()["total"]
+
+    # 5. Total de transacciones
+    cursor.execute(f"SELECT COUNT(*) AS total {sql_base};", params)
+    total_transacciones = cursor.fetchone()["total"]
+
+    return {
+        "total_recaudado": total_recaudado,
+        "cantidad_pagos": cantidad_pagos,
+        "mensualidades_pendientes": mensualidades_pendientes,
+        "mensualidades_vencidas": mensualidades_vencidas,
+        "total_transacciones": total_transacciones
+    }
+
+
+def get_historial_pagos(conn, query=None, cliente_id=None, periodo=None, fecha_desde=None, fecha_hasta=None, estado=None, metodo_pago=None):
+    """
+    Consulta transacciones de mensualidades y pagos con filtros combinables.
+    """
+    actualizar_estados_vencidos(conn)
+    cursor = conn.cursor()
+
+    sql = """
+        SELECT 
+            m.*,
+            v.placa, v.marca, v.modelo, v.color, v.tipo AS tipo_vehiculo,
+            cli.id AS cliente_id, cli.nombre AS cliente_nombre, cli.documento AS cliente_documento,
+            cli.tipo_documento AS cliente_tipo_documento, cli.telefono AS cliente_telefono,
+            cli.email AS cliente_email, cli.direccion AS cliente_direccion,
+            u.nombre AS usuario_nombre, u.username AS usuario_username
+        FROM mensualidades m
+        JOIN vehiculos v ON v.id = m.vehiculo_id
+        JOIN clientes cli ON cli.id = m.cliente_id
+        LEFT JOIN usuarios u ON u.id = m.usuario_id
+        WHERE 1=1
+    """
+    params = []
+
+    if query and query.strip():
+        term = f"%{query.strip().upper()}%"
+        term_raw = f"%{query.strip()}%"
+        sql += """ AND (
+            v.placa LIKE ? OR 
+            UPPER(cli.nombre) LIKE ? OR 
+            cli.documento LIKE ? OR 
+            m.referencia_pago LIKE ?
+        )"""
+        params.extend([term, term, term_raw, term_raw])
+
+    if cliente_id:
+        sql += " AND m.cliente_id = ?"
+        params.append(cliente_id)
+
+    if periodo and periodo.strip():
+        sql += " AND m.periodo = ?"
+        params.append(periodo.strip())
+
+    if fecha_desde and fecha_desde.strip():
+        sql += " AND date(m.fecha_pago) >= date(?)"
+        params.append(fecha_desde.strip())
+
+    if fecha_hasta and fecha_hasta.strip():
+        sql += " AND date(m.fecha_pago) <= date(?)"
+        params.append(fecha_hasta.strip())
+
+    if estado and estado.strip() and estado.upper() != "TODOS":
+        sql += " AND m.estado = ?"
+        params.append(estado.strip().upper())
+
+    if metodo_pago and metodo_pago.strip() and metodo_pago.upper() != "TODOS":
+        sql += " AND m.metodo_pago = ?"
+        params.append(metodo_pago.strip())
+
+    sql += " ORDER BY m.fecha_pago DESC, m.id DESC;"
+
+    cursor.execute(sql, params)
+    return cursor.fetchall()
+
+
+def get_pago_por_id(conn, pago_id):
+    """
+    Obtiene los datos completos de una mensualidad/pago por su ID.
+    """
+    actualizar_estados_vencidos(conn)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            m.*,
+            v.placa, v.marca, v.modelo, v.color, v.tipo AS tipo_vehiculo,
+            cli.id AS cliente_id, cli.nombre AS cliente_nombre, cli.documento AS cliente_documento,
+            cli.tipo_documento AS cliente_tipo_documento, cli.telefono AS cliente_telefono,
+            cli.email AS cliente_email, cli.direccion AS cliente_direccion,
+            u.nombre AS usuario_nombre, u.username AS usuario_username
+        FROM mensualidades m
+        JOIN vehiculos v ON v.id = m.vehiculo_id
+        JOIN clientes cli ON cli.id = m.cliente_id
+        LEFT JOIN usuarios u ON u.id = m.usuario_id
+        WHERE m.id = ?;
+    """, (pago_id,))
+    return cursor.fetchone()
 
 
 def get_historial_movimientos(conn, placa=None, fecha_desde=None, fecha_hasta=None, estado=None):
